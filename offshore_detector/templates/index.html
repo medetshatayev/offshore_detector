@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Offshore Transaction Risk Detector</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            padding-top: 4.5rem;
+        }
+        .container {
+            max-width: 600px;
+        }
+        .flash-message {
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+        <a class="navbar-brand" href="#">Offshore Detector</a>
+    </nav>
+
+    <main role="main" class="container">
+        <div class="jumbotron">
+            <h1>Upload Transaction Files</h1>
+            <p class="lead">Select the incoming and outgoing transaction Excel files for analysis.</p>
+            <form method=post enctype=multipart/form-data>
+                <div class="form-group">
+                    <label for="incoming_file">Incoming Transactions (.xlsx/.xls)</label>
+                    <input type=file class="form-control-file" name=incoming_file id="incoming_file" required>
+                </div>
+                <div class="form-group">
+                    <label for="outgoing_file">Outgoing Transactions (.xlsx/.xls)</label>
+                    <input type=file class="form-control-file" name=outgoing_file id="outgoing_file" required>
+                </div>
+                <button type=submit class="btn btn-primary">Upload and Process</button>
+            </form>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="alert alert-warning flash-message" role="alert">
+              {% for message in messages %}
+                {{ message }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% if processed_files %}
+        <div class="mt-4">
+            <h2>Processing Complete</h2>
+            <p>Download your processed files:</p>
+            <ul>
+                {% for file in processed_files %}
+                <li><a href="{{ url_for('download_file', filename=file) }}">{{ file }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </main>
+</body>
+</html>
