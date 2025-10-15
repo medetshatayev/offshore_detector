@@ -19,10 +19,11 @@
 </head>
 <body>
     <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
-        <a class="navbar-brand" href="#">Offshore Detector</a>
+        <a class="navbar-brand" href="{{ url_for('reload') }}">Offshore Detector</a>
     </nav>
 
     <main role="main" class="container">
+        {% if not job_info %}
         <div class="jumbotron">
             <h1>Upload Transaction Files</h1>
             <p class="lead">Select the incoming and outgoing transaction Excel files for analysis.</p>
@@ -38,6 +39,7 @@
                 <button type=submit class="btn btn-primary">Upload and Process</button>
             </form>
         </div>
+        {% endif %}
 
         {% with messages = get_flashed_messages() %}
           {% if messages %}
@@ -49,16 +51,29 @@
           {% endif %}
         {% endwith %}
 
-        {% if processed_files %}
-        <div class="mt-4">
-            <h2>Processing Complete</h2>
-            <p>Download your processed files:</p>
-            <ul>
-                {% for file in processed_files %}
-                <li><a href="{{ url_for('download_file', filename=file) }}">{{ file }}</a></li>
-                {% endfor %}
-            </ul>
-        </div>
+        {% if job_info %}
+            {% if job_info.status == 'processing' %}
+            <div class="alert alert-info" role="alert">
+                Your files are being processed. Please wait and then click the reload button.
+                <a href="{{ url_for('index') }}" class="btn btn-secondary ml-2">Reload</a>
+            </div>
+            {% elif job_info.status == 'completed' %}
+            <div class="mt-4">
+                <h2>Processing Complete</h2>
+                <p>Download your processed files:</p>
+                <ul>
+                    {% for file in job_info.files %}
+                    <li><a href="{{ url_for('download_file', filename=file) }}">{{ file }}</a></li>
+                    {% endfor %}
+                </ul>
+                <a href="{{ url_for('reload') }}" class="btn btn-primary mt-3">Process New Files</a>
+            </div>
+            {% elif job_info.status == 'failed' %}
+            <div class="alert alert-danger" role="alert">
+                An error occurred during processing: {{ job_info.error }}
+                <a href="{{ url_for('reload') }}" class="btn btn-danger ml-2">Try Again</a>
+            </div>
+            {% endif %}
         {% endif %}
     </main>
 </body>
