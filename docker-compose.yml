@@ -1,0 +1,7 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./offshore_detector/uploads:/app/uploads
