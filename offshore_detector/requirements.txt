@@ -9,3 +9,4 @@ python-dotenv
 werkzeug
 beautifulsoup4
 gevent
+gunicorn
