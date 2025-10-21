@@ -1,6 +1,7 @@
 flask
 pandas
 openpyxl
+xlrd
 python-Levenshtein
 openai
 requests

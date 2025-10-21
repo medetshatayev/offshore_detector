@@ -7,13 +7,19 @@ from config import DESKTOP_PATH
 
 def parse_excel(file_path, direction):
     """
-    Parse incoming or outgoing transaction Excel files.
+    Parse incoming or outgoing transaction Excel files, trying different skiprows values.
     """
-    skiprows = 4 if direction == 'incoming' else 5
-    try:
-        return pd.read_excel(file_path, skiprows=skiprows)
-    except Exception as e:
-        raise ValueError(f"Failed to parse {file_path}: {e}")
+    skip_options = [4, 3, 5] if direction == 'incoming' else [5, 4, 6]
+
+    for skips in skip_options:
+        try:
+            df = pd.read_excel(file_path, skiprows=skips)
+            if 'Сумма в тенге' in df.columns or 'Сумма' in df.columns:
+                return df
+        except Exception:
+            continue
+    
+    raise ValueError(f"Failed to parse {file_path} with any of the tried skip row configurations.")
 
 def export_to_excel(df, filename, sheet_name):
     """
