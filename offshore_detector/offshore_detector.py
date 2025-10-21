@@ -48,8 +48,9 @@ def detect_offshore(df):
     """
     Run offshore detection logic on a dataframe.
     """
-    df['Результат'] = df.apply(lambda row: format_result(analyze_transaction(row)), axis=1)
-    return df
+    df_copy = df.copy()
+    df_copy['Результат'] = df_copy.apply(lambda row: format_result(analyze_transaction(row)), axis=1)
+    return df_copy
 
 def format_result(classification_data):
     """

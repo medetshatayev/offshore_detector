@@ -53,7 +53,7 @@ def run_preliminary_analysis(row):
     swift_code = row.get('SWIFT Банка плательщика') or row.get('SWIFT Банка получателя')
     swift_country_match = extract_country_from_swift(swift_code)
 
-    confidence = calculate_confidence(dict_hits, swift_country_match, matched_fields, match_details)
+    confidence = calculate_confidence(dict_hits, swift_country_match, matched_fields, match_details, field_weights)
     
     scenario = classify_scenario(row['direction'], dict_hits, swift_country_match)
 
@@ -77,21 +77,34 @@ def extract_country_from_swift(swift_code):
             return country_name
     return None
 
-def calculate_confidence(dict_hits, swift_country_match, matched_fields, match_details):
+def calculate_confidence(dict_hits, swift_country_match, matched_fields, match_details, field_weights):
     """
     Calculate confidence score based on signals.
     """
     confidence = 0.0
-    if len(dict_hits) > 0: confidence += 0.4
-    if swift_country_match: confidence += 0.3
-    if 'Страна резидентства' in matched_fields: confidence += 0.2
-    if any(f in matched_fields for f in ['Банк плательщика', 'Банк получателя']): confidence += 0.1
-    if any(f in matched_fields for f in ['Плательщик', 'Получатель']): confidence += 0.15
+    
+    # Base confidence from dictionary and SWIFT hits
+    if dict_hits:
+        confidence += 0.4
+    if swift_country_match:
+        confidence += 0.3
+        
+    # Add confidence based on matched fields and their weights
+    for field in matched_fields:
+        if field in field_weights:
+            confidence += field_weights[field]
+
+    # Bonus for multiple signals
+    if len(dict_hits) > 1:
+        confidence += 0.1
+    if len(matched_fields) > 2:
+        confidence += 0.1
+        
+    # Factor in fuzzy match similarity
     if match_details:
         avg_similarity = sum(d['similarity'] for d in match_details) / len(match_details)
         confidence += avg_similarity * 0.1
-    if len(dict_hits) > 1: confidence += 0.1
-    if len(matched_fields) > 2: confidence += 0.1
+
     return min(confidence, 1.0)
 
 def classify_scenario(direction, dict_hits, swift_country_match):
