@@ -5,7 +5,7 @@ from flask import Flask, request, render_template, redirect, url_for, flash, sen
 import os
 import pandas as pd
 from datetime import datetime
-from werkzeug.utils import secure_filename
+
 import threading
 import uuid
 import logging
@@ -59,8 +59,8 @@ def index():
         if incoming_file and outgoing_file:
             # Validate file extensions
             allowed_extensions = {'.xlsx', '.xls'}
-            incoming_filename = secure_filename(incoming_file.filename)
-            outgoing_filename = secure_filename(outgoing_file.filename)
+            incoming_filename = os.path.basename(incoming_file.filename)
+            outgoing_filename = os.path.basename(outgoing_file.filename)
             
             if not any(incoming_filename.lower().endswith(ext) for ext in allowed_extensions):
                 flash('Invalid file type for incoming file. Only Excel files (.xlsx, .xls) are allowed.')
@@ -96,7 +96,7 @@ def reload():
 @app.route('/download/<filename>')
 def download_file(filename):
     # Validate filename to prevent path traversal attacks
-    safe_filename = secure_filename(filename)
+    safe_filename = os.path.basename(filename)
     if not safe_filename or safe_filename != filename:
         flash('Invalid filename')
         return redirect(url_for('index'))
