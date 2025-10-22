@@ -43,18 +43,15 @@ def filter_transactions(df, direction):
         """Parse amount handling different locale formats."""
         if pd.isna(value):
             return 0.0
-        s = str(value).strip().replace(' ', '').replace('\xa0', '')  # Remove spaces and non-breaking spaces
-        # If there are multiple dots/commas, assume thousands separator
+        s = str(value).strip().replace(' ', '').replace('\xa0', '')
         if s.count(',') > 1 or s.count('.') > 1:
             s = s.replace(',', '').replace('.', '')
         elif ',' in s and '.' in s:
-            # Determine which is decimal separator (appears last)
             if s.rindex(',') > s.rindex('.'):
                 s = s.replace('.', '').replace(',', '.')
             else:
                 s = s.replace(',', '')
         elif ',' in s:
-            # If only comma, check if it looks like decimal separator
             parts = s.split(',')
             if len(parts) == 2 and len(parts[1]) <= 2:
                 s = s.replace(',', '.')
@@ -73,12 +70,21 @@ def filter_transactions(df, direction):
 def detect_offshore(df):
     """
     Run offshore detection logic on a dataframe.
+    Adds separate columns for flag and reason, with a formatted summary for convenience.
     PERFORMANCE NOTE: df.apply() processes rows sequentially. For large datasets,
     consider using parallel processing with multiprocessing.Pool or concurrent.futures.
     """
     df_copy = df.copy()
     logging.info(f"Processing {len(df_copy)} transactions...")
-    df_copy['Результат'] = df_copy.apply(lambda row: format_result(analyze_transaction(row)), axis=1)
+
+    # Compute classification data once per row
+    df_copy['_classification'] = df_copy.apply(lambda row: analyze_transaction(row), axis=1)
+
+    df_copy['Флаг'] = df_copy['_classification'].apply(lambda d: d.get('classification'))
+    df_copy['Обоснование'] = df_copy['_classification'].apply(lambda d: d.get('explanation_ru'))
+
+    # Clean up helper column
+    df_copy.drop(columns=['_classification'], inplace=True)
     return df_copy
 
 def format_result(classification_data):

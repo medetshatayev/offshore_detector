@@ -14,12 +14,12 @@ from offshore_detector import process_transactions
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
-# Use environment variable for SECRET_KEY, fallback for development only
+# Use environment variable for SECRET_KEY
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# In-memory job store (for a production environment, consider a more robust solution like Redis)
+# In-memory job store
 jobs = {}
 
 def process_transactions_wrapper(job_id, incoming_path, outgoing_path):
@@ -112,6 +112,5 @@ def download_file(filename):
     return send_from_directory(desktop_path, safe_filename, as_attachment=True)
 
 if __name__ == '__main__':
-    # Only enable debug mode in development
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
     app.run(debug=debug_mode)
