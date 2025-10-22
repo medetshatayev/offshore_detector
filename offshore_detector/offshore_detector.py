@@ -5,9 +5,9 @@ import pandas as pd
 from datetime import datetime
 import logging
 
-from excel_handler import parse_excel, export_to_excel
-from analyzer import analyze_transaction
-from config import THRESHOLD_KZT, FIELD_TRANSLATIONS, SCENARIO_DESCRIPTIONS
+from .excel_handler import parse_excel, export_to_excel
+from .analyzer import analyze_transaction
+from .config import THRESHOLD_KZT, FIELD_TRANSLATIONS, SCENARIO_DESCRIPTIONS
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 

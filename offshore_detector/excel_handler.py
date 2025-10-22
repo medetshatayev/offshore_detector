@@ -4,7 +4,7 @@ Excel parsing and export functionality.
 import pandas as pd
 import os
 import logging
-from config import DESKTOP_PATH
+from .config import DESKTOP_PATH
 
 def parse_excel(file_path, direction):
     """

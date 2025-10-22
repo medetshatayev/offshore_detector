@@ -10,6 +10,14 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 DESKTOP_PATH = os.getenv('DESKTOP_PATH', os.path.join(os.path.expanduser('~'), 'Desktop'))
 THRESHOLD_KZT = float(os.getenv('THRESHOLD_KZT', 5000000.0))
 
+# Geocoding API Configuration
+GEOCODING_USER_AGENT = os.getenv('GEOCODING_USER_AGENT', 'OffshoreDetector/1.0')
+GEOCODING_TIMEOUT = int(os.getenv('GEOCODING_TIMEOUT', 8))
+GEOCODING_RATE_LIMIT = float(os.getenv('GEOCODING_RATE_LIMIT', 1.0))  # seconds between requests
+GEOCODING_CACHE_SIZE = int(os.getenv('GEOCODING_CACHE_SIZE', 500))
+GEOCODING_MAX_RETRIES = int(os.getenv('GEOCODING_MAX_RETRIES', 2))
+GEOCODING_MAX_RESPONSE_SIZE = int(os.getenv('GEOCODING_MAX_RESPONSE_SIZE', 1048576))  # 1MB
+
 OFFSHORE_JURISDICTIONS = {
     'en': [
         'andorra', 'anguilla', 'antigua and barbuda', 'aruba', 'bahamas', 'bahrain',

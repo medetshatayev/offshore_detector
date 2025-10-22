@@ -7,10 +7,10 @@ import logging
 import time
 import json
 
-from fuzzy_matcher import fuzzy_match
-from web_research import parallel_web_research
-from ai_classifier import classify_with_gpt4
-from config import OFFSHORE_JURISDICTIONS, SWIFT_COUNTRY_MAP, FIELD_WEIGHTS_INCOMING, FIELD_WEIGHTS_OUTGOING
+from .fuzzy_matcher import fuzzy_match
+from .web_research import parallel_web_research
+from .ai_classifier import classify_with_gpt4
+from .config import OFFSHORE_JURISDICTIONS, SWIFT_COUNTRY_MAP, FIELD_WEIGHTS_INCOMING, FIELD_WEIGHTS_OUTGOING
 
 def analyze_transaction(row):
     """

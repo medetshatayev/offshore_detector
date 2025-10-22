@@ -5,7 +5,7 @@ Updated to use the Responses API with web_search tool and structured output.
 from openai import OpenAI
 import json
 import logging
-from config import OPENAI_API_KEY, OFFSHORE_JURISDICTIONS, SCENARIO_DESCRIPTIONS
+from .config import OPENAI_API_KEY, OFFSHORE_JURISDICTIONS, SCENARIO_DESCRIPTIONS
 
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 

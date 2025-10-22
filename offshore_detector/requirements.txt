@@ -5,6 +5,7 @@ xlrd
 python-Levenshtein
 openai
 requests
+aiohttp
 tenacity
 python-dotenv
 werkzeug
