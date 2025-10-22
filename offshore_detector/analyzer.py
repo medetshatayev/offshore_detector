@@ -12,7 +12,6 @@ from config import OFFSHORE_JURISDICTIONS, SWIFT_COUNTRY_MAP, FIELD_WEIGHTS_INCO
 def analyze_transaction(row):
     """
     Analyze a single transaction row.
-    Fixed: Consistent error dict structure that matches expected format.
     """
     try:
         preliminary_analysis = run_preliminary_analysis(row)
@@ -29,7 +28,6 @@ def analyze_transaction(row):
         return final_classification
     except Exception as e:
         logging.error(f"Error analyzing transaction: {e}")
-        # Return a properly formatted error response matching the expected structure
         return {
             "classification": "ОШИБКА",
             "scenario": None,
@@ -79,12 +77,11 @@ def run_preliminary_analysis(row):
 def extract_country_from_swift(swift_code):
     """
     Extract country from SWIFT code and check if it's offshore.
-    Fixed: Proper SWIFT code validation (8 or 11 characters).
     """
     if not isinstance(swift_code, str):
         return None
     
-    # SWIFT/BIC codes are 8 or 11 characters (AAAA BB CC DDD)
+    # SWIFT/BIC codes are 8 or 11 characters
     swift_clean = swift_code.strip().upper()
     if len(swift_clean) not in (8, 11):
         return None
@@ -99,7 +96,6 @@ def extract_country_from_swift(swift_code):
 def calculate_confidence(dict_hits, swift_country_match, matched_fields, match_details, field_weights):
     """
     Calculate confidence score based on signals.
-    Fixed: Properly weighted scoring to prevent exceeding 1.0 prematurely.
     """
     confidence = 0.0
     
