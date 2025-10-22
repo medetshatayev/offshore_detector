@@ -53,6 +53,20 @@ def classify_with_gpt4(transaction_data, preliminary_analysis):
     except Exception:
         geocoding = None
 
+    # Heuristic to encourage web search usage
+    must_search = False
+    reasons = []
+    prelim_conf = float(preliminary_analysis.get('confidence') or 0.0)
+    if 0.3 <= prelim_conf <= 0.9:
+        must_search = True
+        reasons.append("mid_confidence")
+    if (preliminary_analysis.get('dict_hits') or []):
+        must_search = True
+        reasons.append("dict_hits_present")
+    if not geocoding:
+        must_search = True
+        reasons.append("geocoding_missing")
+
     payload = {
         "transaction": {
             "direction": direction,
@@ -66,6 +80,7 @@ def classify_with_gpt4(transaction_data, preliminary_analysis):
         "geocoding": geocoding,
         "offshore_jurisdictions": OFFSHORE_JURISDICTIONS,
         "scenario_descriptions": SCENARIO_DESCRIPTIONS,
+        "search_guidance": {"must_search": must_search, "reasons": reasons},
         "response_schema": {
             "classification": ["ОФШОР: ДА", "ОФШОР: ПОДОЗРЕНИЕ", "ОФШОР: НЕТ"],
             "scenario": [1, 2, 3, None],
@@ -90,10 +105,12 @@ def classify_with_gpt4(transaction_data, preliminary_analysis):
 
     # Build a compact logging context
     try:
+        def oneline(s):
+            return (s or "").replace("\n", " ").replace("\r", " ")
         summary_ctx = {
             "direction": direction,
-            "counterparty": (counterparty or "")[:120],
-            "bank": (bank or "")[:120],
+            "counterparty": oneline(counterparty)[:120],
+            "bank": oneline(bank)[:120],
             "swift": swift_code,
             "prelim": {
                 "confidence": preliminary_analysis.get('confidence'),
@@ -125,6 +142,14 @@ def classify_with_gpt4(transaction_data, preliminary_analysis):
 
         json_str = text.strip().replace('```json', '').replace('```', '').strip()
         result = json.loads(json_str)
+        # Confidence hygiene: if no sources and no SWIFT offshore signal, cap confidence
+        try:
+            has_sources = bool(result.get("sources"))
+            swift_offshore = bool(preliminary_analysis.get('swift_country_match'))
+            if not has_sources and not swift_offshore:
+                result["confidence"] = min(float(result.get("confidence") or 0.0), 0.7)
+        except Exception:
+            pass
         # Log a concise response summary
         try:
             resp_summary = {

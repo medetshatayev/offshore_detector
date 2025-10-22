@@ -1,8 +1,11 @@
 """
 Core analysis functions for the Offshore Transaction Risk Detection System.
+Adds structured per-row logging with timings and swift-derived signals.
 """
 import pandas as pd
 import logging
+import time
+import json
 
 from fuzzy_matcher import fuzzy_match
 from web_research import parallel_web_research
@@ -14,17 +17,46 @@ def analyze_transaction(row):
     Analyze a single transaction row.
     """
     try:
+        t0 = time.time()
         preliminary_analysis = run_preliminary_analysis(row)
-        
-        if preliminary_analysis['confidence'] > 0.2:
-            web_results = parallel_web_research(
-                row.get('Плательщик') or row.get('Получатель'),
-                row.get('Банк плательщика') or row.get('Банк получателя')
-            )
-            preliminary_analysis['web_results'] = web_results
-        
+        geocode_ms = 0
+
+        # Always perform geocoding per requirements and pass SWIFT country code
+        tg0 = time.time()
+        swift_code = row.get('SWIFT Банка плательщика') or row.get('SWIFT Банка получателя')
+        web_results = parallel_web_research(
+            row.get('Плательщик') or row.get('Получатель'),
+            row.get('Банк плательщика') or row.get('Банк получателя'),
+            swift_code
+        )
+        geocode_ms = int((time.time() - tg0) * 1000)
+        preliminary_analysis['web_results'] = web_results
+
+        to0 = time.time()
         final_classification = classify_with_gpt4(row, preliminary_analysis)
-        
+        openai_ms = int((time.time() - to0) * 1000)
+        total_ms = int((time.time() - t0) * 1000)
+
+        # Structured per-row log
+        try:
+            row_idx = getattr(row, 'name', None)
+            swift_country = preliminary_analysis.get('swift_country_match')
+            payload = {
+                "row": row_idx,
+                "direction": row.get('direction'),
+                "swift_country": swift_country,
+                "swift_offshore": bool(swift_country),
+                "prelim_conf": round(preliminary_analysis.get('confidence', 0.0), 3),
+                "final_class": final_classification.get('classification'),
+                "final_scen": final_classification.get('scenario'),
+                "final_conf": final_classification.get('confidence'),
+                "sources_count": len(final_classification.get('sources') or []),
+                "ms": {"geocode": geocode_ms, "openai": openai_ms, "total": total_ms}
+            }
+            logging.info("Row summary: %s", json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            pass
+
         return final_classification
     except Exception as e:
         logging.error(f"Error analyzing transaction: {e}")
