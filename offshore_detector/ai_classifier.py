@@ -69,13 +69,13 @@ SWIFT: {swift_code}
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",  # Fixed: was "gpt-4.1" which doesn't exist
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.1,
-            max_tokens=5000
+            max_tokens=4096
         )
         
         response_content = response.choices[0].message.content
@@ -85,7 +85,7 @@ SWIFT: {swift_code}
         return json.loads(json_str)
 
     except Exception as e:
-        logging.error(f"Error in GPT-4 classification: {e}")
+        logging.error(f"Error in GPT classification: {e}")
         return fallback_classification(preliminary_analysis)
 
 def fallback_classification(preliminary_analysis):
