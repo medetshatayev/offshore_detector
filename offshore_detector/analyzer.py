@@ -28,7 +28,15 @@ def analyze_transaction(row):
         return final_classification
     except Exception as e:
         logging.error(f"Error analyzing transaction: {e}")
-        return {"error": f"Ошибка обработки: {e}"}
+        return {
+            "classification": "ОШИБКА",
+            "scenario": None,
+            "confidence": 0.0,
+            "matched_fields": [],
+            "signals": {},
+            "sources": [],
+            "explanation_ru": f"Ошибка обработки: {str(e)}"
+        }
 
 def run_preliminary_analysis(row):
     """
@@ -70,11 +78,19 @@ def extract_country_from_swift(swift_code):
     """
     Extract country from SWIFT code and check if it's offshore.
     """
-    if isinstance(swift_code, str) and len(swift_code) >= 6:
-        country_code = swift_code[4:6].upper()
-        country_name = SWIFT_COUNTRY_MAP.get(country_code)
-        if country_name in OFFSHORE_JURISDICTIONS['en']:
-            return country_name
+    if not isinstance(swift_code, str):
+        return None
+    
+    # SWIFT/BIC codes are 8 or 11 characters
+    swift_clean = swift_code.strip().upper()
+    if len(swift_clean) not in (8, 11):
+        return None
+    
+    # Country code is at positions 4:6
+    country_code = swift_clean[4:6]
+    country_name = SWIFT_COUNTRY_MAP.get(country_code)
+    if country_name and country_name in OFFSHORE_JURISDICTIONS['en']:
+        return country_name
     return None
 
 def calculate_confidence(dict_hits, swift_country_match, matched_fields, match_details, field_weights):
@@ -83,24 +99,26 @@ def calculate_confidence(dict_hits, swift_country_match, matched_fields, match_d
     """
     confidence = 0.0
     
-    # Base confidence from dictionary and SWIFT hits
+    # Base confidence from dictionary and SWIFT hits (max 0.5 combined)
     if dict_hits:
-        confidence += 0.4
-    if swift_country_match:
         confidence += 0.3
+    if swift_country_match:
+        confidence += 0.2
         
-    # Add confidence based on matched fields and their weights
+    # Add confidence based on matched fields and their weights (scaled down to max 0.3)
+    field_score = 0.0
     for field in matched_fields:
         if field in field_weights:
-            confidence += field_weights[field]
+            field_score += field_weights[field]
+    confidence += min(field_score, 1.0) * 0.3  # Scale field weights to max 0.3
 
-    # Bonus for multiple signals
+    # Bonus for multiple signals (max 0.1 combined)
     if len(dict_hits) > 1:
-        confidence += 0.1
+        confidence += 0.05
     if len(matched_fields) > 2:
-        confidence += 0.1
+        confidence += 0.05
         
-    # Factor in fuzzy match similarity
+    # Factor in fuzzy match similarity (max 0.1)
     if match_details:
         avg_similarity = sum(d['similarity'] for d in match_details) / len(match_details)
         confidence += avg_similarity * 0.1

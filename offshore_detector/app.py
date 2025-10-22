@@ -8,12 +8,15 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 import threading
 import uuid
+import logging
 
 from offshore_detector import process_transactions
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['SECRET_KEY'] = os.urandom(24)
+# Use environment variable for SECRET_KEY, fallback for development only
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # In-memory job store (for a production environment, consider a more robust solution like Redis)
@@ -26,6 +29,15 @@ def process_transactions_wrapper(job_id, incoming_path, outgoing_path):
         jobs[job_id] = {'status': 'completed', 'files': processed_files}
     except Exception as e:
         jobs[job_id] = {'status': 'failed', 'error': str(e)}
+    finally:
+        # Clean up uploaded files after processing
+        try:
+            if os.path.exists(incoming_path):
+                os.remove(incoming_path)
+            if os.path.exists(outgoing_path):
+                os.remove(outgoing_path)
+        except Exception as cleanup_error:
+            logging.warning(f"Failed to clean up uploaded files: {cleanup_error}")
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -45,8 +57,18 @@ def index():
             return redirect(request.url)
 
         if incoming_file and outgoing_file:
+            # Validate file extensions
+            allowed_extensions = {'.xlsx', '.xls'}
             incoming_filename = secure_filename(incoming_file.filename)
             outgoing_filename = secure_filename(outgoing_file.filename)
+            
+            if not any(incoming_filename.lower().endswith(ext) for ext in allowed_extensions):
+                flash('Invalid file type for incoming file. Only Excel files (.xlsx, .xls) are allowed.')
+                return redirect(request.url)
+            
+            if not any(outgoing_filename.lower().endswith(ext) for ext in allowed_extensions):
+                flash('Invalid file type for outgoing file. Only Excel files (.xlsx, .xls) are allowed.')
+                return redirect(request.url)
             
             incoming_path = os.path.join(app.config['UPLOAD_FOLDER'], incoming_filename)
             outgoing_path = os.path.join(app.config['UPLOAD_FOLDER'], outgoing_filename)
@@ -59,6 +81,7 @@ def index():
             jobs[job_id] = {'status': 'processing'}
 
             thread = threading.Thread(target=process_transactions_wrapper, args=(job_id, incoming_path, outgoing_path))
+            thread.daemon = True  # Allow clean shutdown
             thread.start()
             
             return redirect(url_for('index'))
@@ -72,8 +95,23 @@ def reload():
 
 @app.route('/download/<filename>')
 def download_file(filename):
+    # Validate filename to prevent path traversal attacks
+    safe_filename = secure_filename(filename)
+    if not safe_filename or safe_filename != filename:
+        flash('Invalid filename')
+        return redirect(url_for('index'))
+    
     desktop_path = os.getenv('DESKTOP_PATH', os.path.join(os.path.expanduser('~'), 'Desktop'))
-    return send_from_directory(desktop_path, filename, as_attachment=True)
+    file_path = os.path.join(desktop_path, safe_filename)
+    
+    # Verify the file exists and is within the allowed directory
+    if not os.path.exists(file_path) or not os.path.abspath(file_path).startswith(os.path.abspath(desktop_path)):
+        flash('File not found')
+        return redirect(url_for('index'))
+    
+    return send_from_directory(desktop_path, safe_filename, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Only enable debug mode in development
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    app.run(debug=debug_mode)

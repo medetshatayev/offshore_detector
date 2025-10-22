@@ -43,8 +43,11 @@ def fuzzy_match(text: str, targets: List[str], threshold: float = 0.8) -> List[D
         # 3. Character-level fuzzy match (Levenshtein)
         # 4. Full string fuzzy for short strings
         if len(normalized_text) < 20 or len(normalized_target) < 20:
+            max_len = max(len(normalized_text), len(normalized_target))
+            if max_len == 0:
+                continue
             lev_dist = distance(normalized_text, normalized_target)
-            similarity = 1 - (lev_dist / max(len(normalized_text), len(normalized_target)))
+            similarity = 1 - (lev_dist / max_len)
             if similarity >= threshold:
                 matches.append({'match': target, 'similarity': similarity})
         else: # For longer strings, check token-wise similarity
@@ -57,8 +60,11 @@ def fuzzy_match(text: str, targets: List[str], threshold: float = 0.8) -> List[D
             max_sim = 0
             for txt_tok in text_tokens:
                 for tar_tok in target_tokens:
+                    max_len = max(len(txt_tok), len(tar_tok))
+                    if max_len == 0:
+                        continue
                     lev_dist = distance(txt_tok, tar_tok)
-                    sim = 1 - (lev_dist / max(len(txt_tok), len(tar_tok)))
+                    sim = 1 - (lev_dist / max_len)
                     if sim > max_sim:
                         max_sim = sim
             

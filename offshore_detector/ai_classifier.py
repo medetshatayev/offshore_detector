@@ -75,7 +75,7 @@ SWIFT: {swift_code}
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.1,
-            max_tokens=5000
+            max_tokens=4096
         )
         
         response_content = response.choices[0].message.content
@@ -85,7 +85,7 @@ SWIFT: {swift_code}
         return json.loads(json_str)
 
     except Exception as e:
-        logging.error(f"Error in GPT-4 classification: {e}")
+        logging.error(f"Error in GPT classification: {e}")
         return fallback_classification(preliminary_analysis)
 
 def fallback_classification(preliminary_analysis):
