@@ -38,7 +38,6 @@ def process_transactions(incoming_file_path, outgoing_file_path):
 def filter_transactions(df, direction):
     """
     Filter transactions based on the amount in KZT.
-    Fixed: Proper handling of various number formats.
     """
     def parse_amount(value):
         """Parse amount handling different locale formats."""
@@ -85,7 +84,6 @@ def detect_offshore(df):
 def format_result(classification_data):
     """
     Format the final result string for the Excel output.
-    Fixed: Proper null checking for scenario.
     """
     classification = classification_data.get('classification', 'ОФШОР: НЕТ')
     scenario = classification_data.get('scenario')
