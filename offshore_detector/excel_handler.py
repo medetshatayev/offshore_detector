@@ -3,11 +3,13 @@ Excel parsing and export functionality.
 """
 import pandas as pd
 import os
+import logging
 from config import DESKTOP_PATH
 
 def parse_excel(file_path, direction):
     """
     Parse incoming or outgoing transaction Excel files, trying different skiprows values.
+    Fixed: Added logging for better diagnostics.
     """
     skip_options = [4, 3, 5] if direction == 'incoming' else [5, 4, 6]
 
@@ -15,11 +17,13 @@ def parse_excel(file_path, direction):
         try:
             df = pd.read_excel(file_path, skiprows=skips)
             if 'Сумма в тенге' in df.columns or 'Сумма' in df.columns:
+                logging.info(f"Successfully parsed {file_path} ({direction}) with skiprows={skips}")
                 return df
-        except Exception:
+        except Exception as e:
+            logging.debug(f"Failed to parse {file_path} with skiprows={skips}: {e}")
             continue
     
-    raise ValueError(f"Failed to parse {file_path} with any of the tried skip row configurations.")
+    raise ValueError(f"Failed to parse {file_path} with any of the tried skip row configurations: {skip_options}")
 
 def export_to_excel(df, filename, sheet_name):
     """

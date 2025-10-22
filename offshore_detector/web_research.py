@@ -7,12 +7,40 @@ import asyncio
 import urllib.parse
 import logging
 from bs4 import BeautifulSoup
+from functools import lru_cache
+import hashlib
+import time
+import threading
 
+# Simple cache for search results (since they return lists which are not hashable)
+_search_cache = {}
+
+# Rate limiting: Track last request time
+_last_request_time = {'geocode': 0.0, 'search': 0.0}
+_rate_limit_lock = threading.Lock()
+
+def rate_limit(service, min_interval=1.0):
+    """
+    Simple rate limiter to avoid overwhelming external APIs.
+    """
+    with _rate_limit_lock:
+        elapsed = time.time() - _last_request_time.get(service, 0.0)
+        if elapsed < min_interval:
+            time.sleep(min_interval - elapsed)
+        _last_request_time[service] = time.time()
+
+@lru_cache(maxsize=500)  # Cache up to 500 unique bank lookups
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
 def geocode_bank(bank_name):
     """
     Geocode bank name using OpenStreetMap Nominatim.
+    Performance: Cached to avoid redundant API calls. Rate-limited to respect API usage policies.
     """
+    if not bank_name:
+        return None
+    
+    rate_limit('geocode', min_interval=1.0)  # Nominatim requires 1 req/sec max
+    
     url = "https://nominatim.openstreetmap.org/search"
     params = {
         'q': bank_name[:100],
@@ -37,7 +65,15 @@ def google_search(counterparty_name, bank_name):
     Perform a Google search for offshore indicators.
     This function scrapes Google search results and is not 100% reliable.
     For production use, consider a dedicated search API.
+    Performance: Cached to avoid redundant searches.
     """
+    # Create cache key
+    cache_key = f"{counterparty_name}:{bank_name}"
+    if cache_key in _search_cache:
+        return _search_cache[cache_key]
+    
+    rate_limit('search', min_interval=2.0)  # Rate limit Google searches
+    
     query = f"{counterparty_name} {bank_name} offshore tax haven"[:100]
     url = f"https://www.google.com/search?q={urllib.parse.quote(query)}&num=3"
     headers = {
@@ -58,7 +94,14 @@ def google_search(counterparty_name, bank_name):
                 clean_link = href.split('/url?q=')[1].split('&sa=U')[0]
                 links.append(urllib.parse.unquote(clean_link))
         
-        return links[:3] # Return top 3 results
+        result = links[:3] if links else None  # Return top 3 results
+        
+        # Cache result (limit cache size)
+        if len(_search_cache) > 500:
+            _search_cache.clear()
+        _search_cache[cache_key] = result
+        
+        return result
     except requests.RequestException as e:
         logging.error(f"Google search request failed: {e}")
         return None
@@ -86,9 +129,25 @@ async def run_web_research(counterparty_name, bank_name):
 def parallel_web_research(counterparty_name, bank_name):
     """
     Entry point for parallel web research.
+    Fixed: Proper event loop handling for all contexts.
     """
     try:
-        return asyncio.run(run_web_research(counterparty_name, bank_name))
-    except RuntimeError: # For environments where an event loop is already running (like Jupyter)
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(run_web_research(counterparty_name, bank_name))
+        # Try to get the running loop
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop, create a new one
+        try:
+            return asyncio.run(run_web_research(counterparty_name, bank_name))
+        except Exception as e:
+            logging.error(f"Error in web research: {e}")
+            return {"geocoding": None, "search_results": None}
+    else:
+        # Loop is already running (e.g., in Jupyter), use run_in_executor
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, run_web_research(counterparty_name, bank_name))
+            try:
+                return future.result(timeout=30)
+            except Exception as e:
+                logging.error(f"Error in web research: {e}")
+                return {"geocoding": None, "search_results": None}

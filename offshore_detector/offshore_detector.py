@@ -38,8 +38,35 @@ def process_transactions(incoming_file_path, outgoing_file_path):
 def filter_transactions(df, direction):
     """
     Filter transactions based on the amount in KZT.
+    Fixed: Proper handling of various number formats.
     """
-    df['amount_kzt_normalized'] = df['Сумма в тенге'].astype(str).str.replace(' ', '').str.replace(',', '.').astype(float)
+    def parse_amount(value):
+        """Parse amount handling different locale formats."""
+        if pd.isna(value):
+            return 0.0
+        s = str(value).strip().replace(' ', '').replace('\xa0', '')  # Remove spaces and non-breaking spaces
+        # If there are multiple dots/commas, assume thousands separator
+        if s.count(',') > 1 or s.count('.') > 1:
+            s = s.replace(',', '').replace('.', '')
+        elif ',' in s and '.' in s:
+            # Determine which is decimal separator (appears last)
+            if s.rindex(',') > s.rindex('.'):
+                s = s.replace('.', '').replace(',', '.')
+            else:
+                s = s.replace(',', '')
+        elif ',' in s:
+            # If only comma, check if it looks like decimal separator
+            parts = s.split(',')
+            if len(parts) == 2 and len(parts[1]) <= 2:
+                s = s.replace(',', '.')
+            else:
+                s = s.replace(',', '')
+        try:
+            return float(s)
+        except (ValueError, AttributeError):
+            return 0.0
+    
+    df['amount_kzt_normalized'] = df['Сумма в тенге'].apply(parse_amount)
     df['direction'] = direction
     df['timestamp'] = datetime.now()
     return df[df['amount_kzt_normalized'] >= THRESHOLD_KZT].copy()
@@ -47,14 +74,18 @@ def filter_transactions(df, direction):
 def detect_offshore(df):
     """
     Run offshore detection logic on a dataframe.
+    PERFORMANCE NOTE: df.apply() processes rows sequentially. For large datasets,
+    consider using parallel processing with multiprocessing.Pool or concurrent.futures.
     """
     df_copy = df.copy()
+    logging.info(f"Processing {len(df_copy)} transactions...")
     df_copy['Результат'] = df_copy.apply(lambda row: format_result(analyze_transaction(row)), axis=1)
     return df_copy
 
 def format_result(classification_data):
     """
     Format the final result string for the Excel output.
+    Fixed: Proper null checking for scenario.
     """
     classification = classification_data.get('classification', 'ОФШОР: НЕТ')
     scenario = classification_data.get('scenario')
@@ -67,7 +98,7 @@ def format_result(classification_data):
 
     result_parts = [
         f"Итог: {classification}",
-        f"Сценарий {scenario}: {SCENARIO_DESCRIPTIONS[scenario]}" if scenario and scenario in SCENARIO_DESCRIPTIONS else None,
+        f"Сценарий {scenario}: {SCENARIO_DESCRIPTIONS.get(scenario, 'Неизвестно')}" if scenario is not None else None,
         f"Уверенность: {int(confidence * 100)}%",
         f"Объяснение: {explanation_ru}",
         f"Совпадения в полях: {', '.join(translated_fields)}" if translated_fields else None,
