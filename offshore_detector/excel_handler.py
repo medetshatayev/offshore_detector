@@ -9,7 +9,6 @@ from config import DESKTOP_PATH
 def parse_excel(file_path, direction):
     """
     Parse incoming or outgoing transaction Excel files, trying different skiprows values.
-    Fixed: Added logging for better diagnostics.
     """
     skip_options = [4, 3, 5] if direction == 'incoming' else [5, 4, 6]
 
