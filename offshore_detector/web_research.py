@@ -34,9 +34,10 @@ def _normalize_bank_query(name: str) -> str:
     """
     Normalize bank name for geocoding query.
     Extracts the core bank name, removing addresses and noise.
+    Preserves original case to maintain readability of mixed-script text.
     
     Args:
-        name: Raw bank name string
+        name: Raw bank name string (may contain mixed Latin/Cyrillic)
     
     Returns:
         Normalized bank name suitable for geocoding (max 100 chars)
@@ -44,15 +45,22 @@ def _normalize_bank_query(name: str) -> str:
     if not isinstance(name, str) or not name.strip():
         return ""
     
-    # Normalize line separators
-    raw = name.replace("/", " ").replace("\\", " ")
-    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    # Remove leading routing/account numbers and slashes
+    # Pattern: //RU044525700.30101810200000000700 АО BANK
+    # or: //РУ044525700.30101810200000000700 АО BANK (Cyrillic)
+    s = name
+    # Remove leading slashes and account-like patterns (support both Latin and Cyrillic)
+    s = re.sub(r'^[/\\]*\s*[\w]{0,4}\d+[.\d]*\s*', '', s, flags=re.UNICODE)
+    
+    # Normalize line separators but preserve the text
+    s = s.replace("/", " ").replace("\\", " ")
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
     
     # Edge case: empty after processing
     if not lines:
         return ""
 
-    # Keyword regex for bank identification
+    # Keyword regex for bank identification (case-insensitive, supports Cyrillic)
     keyword_re = re.compile(r"\b(bank|банк|банка)\b", re.IGNORECASE)
     
     # Prefer a line containing bank keywords
@@ -75,8 +83,8 @@ def _normalize_bank_query(name: str) -> str:
     # Clean up the candidate string
     s = candidate.split(',')[0].strip()  # Cut at first comma
     
-    # Remove common address patterns
-    address_pattern = r"\b(floor|fl|avenue|ave|road|rd|street|st|bldg|building|no\.?|№|suite|ste|unit)\b.*$"
+    # Remove common address patterns (case-insensitive, supports Cyrillic)
+    address_pattern = r"\b(floor|fl|avenue|ave|road|rd|street|st|bldg|building|no\.?|№|suite|ste|unit|этаж|улица|ул)\b.*$"
     s = re.sub(address_pattern, "", s, flags=re.IGNORECASE).strip()
     
     # Remove trailing parentheses if they don't contain bank keywords
@@ -84,10 +92,12 @@ def _normalize_bank_query(name: str) -> str:
     if m and not keyword_re.search(m.group(1)):
         s = re.sub(r"\([^)]*\)$", "", s).strip()
     
-    # Clean up extra whitespace and trailing numbers
+    # Clean up extra whitespace and trailing standalone numbers
     s = re.sub(r"\s+\d+$", "", s).strip()
     s = re.sub(r"\s+", " ", s)
-    s = re.sub(r"^[^\w]*", "", s)
+    
+    # Remove leading non-word characters but preserve Unicode letters
+    s = re.sub(r"^[\W_]+", "", s, flags=re.UNICODE).strip()
     
     # Ensure not empty and limit length
     if s:
@@ -101,11 +111,16 @@ def _normalize_cache_key(bank_name, swift_country_code: Optional[str]) -> tuple:
     """
     Normalize arguments for consistent cache keys.
     Returns a tuple of (normalized_bank_name, normalized_country_code).
+    
+    Note: Does NOT lowercase bank names to preserve mixed-script text (Cyrillic + Latin).
+    Only normalizes whitespace for cache consistency.
     """
-    # Normalize bank name to lowercase and strip whitespace
-    norm_bank = (bank_name or "").strip().lower()
+    # Normalize bank name: strip and collapse whitespace, but preserve case
+    norm_bank = " ".join((bank_name or "").split()) if bank_name else ""
+    
     # Normalize country code to uppercase and strip (None becomes empty string for caching)
     norm_country = (swift_country_code or "").strip().upper() if swift_country_code else ""
+    
     return (norm_bank, norm_country)
 
 
@@ -137,20 +152,24 @@ def _geocode_bank_cached(norm_bank: str, norm_country: str):
         'Accept': 'application/json'
     }
     try:
-        logging.info("Geocoding request: q='%s'%s", q, 
+        # Log request with query preview
+        query_preview = q[:80] if len(q) <= 80 else q[:77] + "..."
+        logging.info("Geocoding request: q='%s'%s", query_preview,
                     f", countrycodes={params.get('countrycodes')}" if 'countrycodes' in params else "")
         
         response = requests.get(url, params=params, headers=headers, timeout=8)
         response.raise_for_status()
         result = response.json()
         
-        # Log compact summary (use original bank name for logging)
-        _log_geocoding_result(result, norm_bank, q, params.get('countrycodes'))
+        # Log compact summary (use normalized bank name for logging)
+        _log_geocoding_result(result, norm_bank, query_preview, params.get('countrycodes'))
         
         return result
         
     except requests.RequestException as e:
-        logging.error(f"Geocoding request failed for '{norm_bank[:50]}': {e}")
+        # Truncate error message to prevent log spam
+        bank_preview = norm_bank[:80] if len(norm_bank) <= 80 else norm_bank[:77] + "..."
+        logging.error(f"Geocoding request failed for '{bank_preview}': {e}")
         return None
 
 
@@ -184,19 +203,22 @@ def _log_geocoding_result(result, bank_name, query, countrycodes):
     Note: Logs may contain PII (bank names). Consider masking in production.
     """
     try:
+        # Truncate bank name for logging (prevent log spam)
+        bank_display = bank_name[:80] if len(bank_name) <= 80 else bank_name[:77] + "..."
+        
         if result and len(result) > 0:
             first = result[0]
             summary = {
-                "bank": bank_name[:50],  # Truncate long bank names (may contain PII)
+                "bank": bank_display,
                 "display_name": first.get("display_name", "")[:100],
                 "lat": first.get("lat"),
                 "lon": first.get("lon"),
-                "query": query[:50],  # Truncate query
+                "query": query,  # Already truncated in caller
                 "countrycodes": countrycodes
             }
             logging.info("Geocoding summary: %s", json.dumps(summary, ensure_ascii=False))
         else:
-            logging.info("Geocoding: No results found for bank='%s'", bank_name[:50])
+            logging.info("Geocoding: No results for query='%s' (bank='%s')", query, bank_display)
     except Exception as e:
         logging.debug(f"Failed to log geocoding result: {e}")
 
