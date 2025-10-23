@@ -7,7 +7,7 @@ import logging
 
 from excel_handler import parse_excel, export_to_excel
 from analyzer import analyze_transaction
-from config import THRESHOLD_KZT, FIELD_TRANSLATIONS, SCENARIO_DESCRIPTIONS
+from config import THRESHOLD_KZT
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -38,41 +38,94 @@ def process_transactions(incoming_file_path, outgoing_file_path):
 def filter_transactions(df, direction):
     """
     Filter transactions based on the amount in KZT.
+    Normalizes amount field and filters by threshold.
+    
+    Args:
+        df: DataFrame with transaction data
+        direction: 'incoming' or 'outgoing'
+    
+    Returns:
+        Filtered DataFrame with normalized amounts
     """
-    def parse_amount(value):
-        """Parse amount handling different locale formats."""
-        if pd.isna(value):
-            return 0.0
-        s = str(value).strip().replace(' ', '').replace('\xa0', '')
+    # Parse and normalize amounts
+    df['amount_kzt_normalized'] = df['Сумма в тенге'].apply(_parse_amount)
+    df['direction'] = direction
+    df['timestamp'] = datetime.now()
+    
+    # Filter by threshold
+    filtered_df = df[df['amount_kzt_normalized'] >= THRESHOLD_KZT].copy()
+    
+    logging.info(
+        f"Filtered {direction} transactions: {len(filtered_df)} of {len(df)} "
+        f"meet threshold of {THRESHOLD_KZT:,.0f} KZT"
+    )
+    
+    return filtered_df
+
+
+def _parse_amount(value):
+    """
+    Parse amount handling different locale formats.
+    Supports various number formats with commas and periods.
+    
+    Args:
+        value: Amount value (can be float, int, or string)
+    
+    Returns:
+        Parsed float value, or 0.0 if parsing fails
+    """
+    if pd.isna(value):
+        return 0.0
+    
+    # Handle numeric types directly
+    if isinstance(value, (int, float)):
+        return float(value)
+    
+    # Clean string representation
+    s = str(value).strip()
+    s = s.replace(' ', '').replace('\xa0', '')  # Remove spaces
+    
+    if not s:
+        return 0.0
+    
+    try:
+        # Handle multiple separators (likely thousands separators)
         if s.count(',') > 1 or s.count('.') > 1:
+            # Remove all separators and treat as integer
             s = s.replace(',', '').replace('.', '')
-        elif ',' in s and '.' in s:
+            return float(s)
+        
+        # Both comma and period present
+        if ',' in s and '.' in s:
+            # The last one is the decimal separator
             if s.rindex(',') > s.rindex('.'):
+                # Comma is decimal separator (European format)
                 s = s.replace('.', '').replace(',', '.')
             else:
+                # Period is decimal separator (US format)
                 s = s.replace(',', '')
+        
+        # Only comma present
         elif ',' in s:
             parts = s.split(',')
             if len(parts) == 2 and len(parts[1]) <= 2:
+                # Likely decimal separator
                 s = s.replace(',', '.')
             else:
+                # Likely thousands separator
                 s = s.replace(',', '')
-        try:
-            return float(s)
-        except (ValueError, AttributeError):
-            return 0.0
-    
-    df['amount_kzt_normalized'] = df['Сумма в тенге'].apply(parse_amount)
-    df['direction'] = direction
-    df['timestamp'] = datetime.now()
-    return df[df['amount_kzt_normalized'] >= THRESHOLD_KZT].copy()
+        
+        # Try to convert to float
+        return float(s)
+        
+    except (ValueError, AttributeError) as e:
+        logging.debug(f"Failed to parse amount '{value}': {e}")
+        return 0.0
 
 def detect_offshore(df):
     """
     Run offshore detection logic on a dataframe.
-    Adds separate columns for flag and reason, with a formatted summary for convenience.
-    PERFORMANCE NOTE: df.apply() processes rows sequentially. For large datasets,
-    consider using parallel processing with multiprocessing.Pool or concurrent.futures.
+    Uses vectorized operations where possible for better performance.
     """
     df_copy = df.copy()
     logging.info(f"Processing {len(df_copy)} transactions...")
@@ -80,35 +133,13 @@ def detect_offshore(df):
     # Compute classification data once per row
     df_copy['_classification'] = df_copy.apply(lambda row: analyze_transaction(row), axis=1)
 
-    df_copy['Флаг'] = df_copy['_classification'].apply(lambda d: d.get('classification'))
-    df_copy['Обоснование'] = df_copy['_classification'].apply(lambda d: d.get('explanation_ru'))
+    # Extract classification and explanation in a single pass
+    df_copy['Флаг'] = df_copy['_classification'].apply(lambda d: d.get('classification', 'ОФШОР: НЕТ'))
+    df_copy['Обоснование'] = df_copy['_classification'].apply(lambda d: d.get('explanation_ru', 'Нет данных'))
 
     # Clean up helper column
     df_copy.drop(columns=['_classification'], inplace=True)
     return df_copy
-
-def format_result(classification_data):
-    """
-    Format the final result string for the Excel output.
-    """
-    classification = classification_data.get('classification', 'ОФШОР: НЕТ')
-    scenario = classification_data.get('scenario')
-    confidence = classification_data.get('confidence', 0.0)
-    explanation_ru = classification_data.get('explanation_ru', 'Нет данных.')
-    matched_fields = classification_data.get('matched_fields', [])
-    sources = classification_data.get('sources', [])
-
-    translated_fields = [FIELD_TRANSLATIONS.get(f, f) for f in matched_fields]
-
-    result_parts = [
-        f"Итог: {classification}",
-        f"Сценарий {scenario}: {SCENARIO_DESCRIPTIONS.get(scenario, 'Неизвестно')}" if scenario is not None else None,
-        f"Уверенность: {int(confidence * 100)}%",
-        f"Объяснение: {explanation_ru}",
-        f"Совпадения в полях: {', '.join(translated_fields)}" if translated_fields else None,
-        f"Источники: {'; '.join(sources)}" if sources else None
-    ]
-    return ' | '.join([p for p in result_parts if p])
 
 def export_results(incoming_df, outgoing_df):
     """

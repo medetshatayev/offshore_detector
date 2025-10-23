@@ -10,17 +10,138 @@ from config import OPENAI_API_KEY, OFFSHORE_JURISDICTIONS, SCENARIO_DESCRIPTIONS
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 def _extract_output_text(resp):
+    """
+    Extract text output from OpenAI response.
+    Handles different response formats for compatibility.
+    """
+    # Try simple attribute access first
     if hasattr(resp, "output_text") and resp.output_text:
         return resp.output_text
+    
+    # Try extracting from nested output structure
     try:
         parts = []
-        for item in getattr(resp, "output", []):
-            for c in getattr(item, "content", []):
-                if getattr(c, "type", "") == "output_text" and getattr(c, "text", None):
-                    parts.append(c.text)
+        output = getattr(resp, "output", [])
+        for item in output:
+            content = getattr(item, "content", [])
+            for c in content:
+                if getattr(c, "type", "") == "output_text":
+                    text = getattr(c, "text", None)
+                    if text:
+                        parts.append(text)
+        
         return "\n".join(parts) if parts else None
-    except Exception:
+        
+    except (AttributeError, TypeError) as e:
+        logging.debug(f"Failed to extract output text: {e}")
         return None
+
+def _build_request_summary(direction, counterparty, bank, swift_code, 
+                          preliminary_analysis, geocoding):
+    """
+    Build a compact summary of the request context for logging.
+    """
+    try:
+        def oneline(s):
+            return (s or "").replace("\n", " ").replace("\r", " ")
+        
+        geocoding_display = None
+        if isinstance(geocoding, list) and len(geocoding) > 0 and geocoding[0]:
+            geocoding_display = geocoding[0].get('display_name')
+        
+        return {
+            "direction": direction,
+            "counterparty": oneline(counterparty)[:120],
+            "bank": oneline(bank)[:120],
+            "swift": swift_code,
+            "prelim": {
+                "confidence": preliminary_analysis.get('confidence'),
+                "scenario": preliminary_analysis.get('scenario'),
+                "dict_hits": (preliminary_analysis.get('dict_hits') or [])[:5],
+                "matched_fields": preliminary_analysis.get('matched_fields')
+            },
+            "geocoding_display": geocoding_display
+        }
+    except Exception as e:
+        logging.debug(f"Failed to build request summary: {e}")
+        return {"direction": direction, "swift": swift_code}
+
+
+def _parse_gpt_response(text):
+    """
+    Parse GPT response text into JSON result.
+    Handles markdown code blocks and other formatting.
+    
+    Args:
+        text: Raw text from GPT response
+    
+    Returns:
+        Parsed JSON dict or None if parsing fails
+    
+    Raises:
+        json.JSONDecodeError: If text cannot be parsed as JSON
+    """
+    if not text:
+        raise json.JSONDecodeError("Empty response text", "", 0)
+    
+    json_str = text.strip()
+    
+    # Remove markdown code blocks if present
+    if '```json' in json_str or '```' in json_str:
+        json_str = json_str.replace('```json', '').replace('```', '').strip()
+    
+    try:
+        result = json.loads(json_str)
+        
+        # Validate required fields are present
+        required_fields = ['classification', 'confidence']
+        missing_fields = [f for f in required_fields if f not in result]
+        if missing_fields:
+            logging.warning(f"GPT response missing required fields: {missing_fields}")
+        
+        return result
+        
+    except json.JSONDecodeError as e:
+        # Log the problematic text (safely truncated) for debugging
+        safe_text = json_str[:500] if len(json_str) > 500 else json_str
+        logging.error(f"Failed to parse GPT response as JSON: {e}. Text preview: {safe_text}")
+        raise
+
+
+def _apply_confidence_hygiene(result, preliminary_analysis):
+    """
+    Apply confidence hygiene rules to the classification result.
+    Caps confidence if no strong evidence is present.
+    """
+    try:
+        has_sources = bool(result.get("sources"))
+        swift_offshore = bool(preliminary_analysis.get('swift_country_match'))
+        
+        # If no external sources and no SWIFT offshore signal, cap confidence at 0.7
+        if not has_sources and not swift_offshore:
+            current_confidence = float(result.get("confidence", 0.0))
+            result["confidence"] = min(current_confidence, 0.7)
+    except Exception as e:
+        logging.debug(f"Failed to apply confidence hygiene: {e}")
+
+
+def _log_response_summary(result):
+    """
+    Log a concise summary of the GPT response.
+    """
+    try:
+        resp_summary = {
+            "classification": result.get("classification"),
+            "scenario": result.get("scenario"),
+            "confidence": result.get("confidence"),
+            "matched_fields": result.get("matched_fields"),
+            "sources_count": len(result.get("sources") or []),
+        }
+        logging.info("OpenAI response summary: %s", json.dumps(resp_summary, ensure_ascii=False))
+    except Exception as e:
+        logging.debug(f"Failed to log response summary: {e}")
+        logging.info("OpenAI response received (summary unavailable)")
+
 
 def classify_with_gpt4(transaction_data, preliminary_analysis):
     """
@@ -104,68 +225,48 @@ def classify_with_gpt4(transaction_data, preliminary_analysis):
     )
 
     # Build a compact logging context
-    try:
-        def oneline(s):
-            return (s or "").replace("\n", " ").replace("\r", " ")
-        summary_ctx = {
-            "direction": direction,
-            "counterparty": oneline(counterparty)[:120],
-            "bank": oneline(bank)[:120],
-            "swift": swift_code,
-            "prelim": {
-                "confidence": preliminary_analysis.get('confidence'),
-                "scenario": preliminary_analysis.get('scenario'),
-                "dict_hits": (preliminary_analysis.get('dict_hits') or [])[:5],
-                "matched_fields": preliminary_analysis.get('matched_fields')
-            },
-            "geocoding_display": ((geocoding or [None])[0] or {}).get('display_name') if isinstance(geocoding, list) else None
-        }
-    except Exception:
-        summary_ctx = {"direction": direction, "swift": swift_code}
+    summary_ctx = _build_request_summary(
+        direction, counterparty, bank, swift_code, 
+        preliminary_analysis, geocoding
+    )
 
     try:
-        # Log structured summary of what is being sent (not the full payload)
+        # Log structured summary of request context
         logging.info("OpenAI request context: %s", json.dumps(summary_ctx, ensure_ascii=False))
+        
+        # Prepare and execute API request
         req = {
             "model": "gpt-4.1",
             "instructions": system_instructions.strip(),
             "input": [{"role": "user", "content": user_text}],
             "tools": [{"type": "web_search"}],
             "tool_choice": "auto",
-            'metadata': {"user_location": f"Country: KZ, Timezone: Asia/Almaty"}
+            'metadata': {"user_location": "Country: KZ, Timezone: Asia/Almaty"}
         }
         resp = client.responses.create(**req)
 
+        # Extract and parse response
         text = _extract_output_text(resp)
         if not text:
             raise ValueError("Empty response from model")
 
-        json_str = text.strip().replace('```json', '').replace('```', '').strip()
-        result = json.loads(json_str)
-        # Confidence hygiene: if no sources and no SWIFT offshore signal, cap confidence
-        try:
-            has_sources = bool(result.get("sources"))
-            swift_offshore = bool(preliminary_analysis.get('swift_country_match'))
-            if not has_sources and not swift_offshore:
-                result["confidence"] = min(float(result.get("confidence") or 0.0), 0.7)
-        except Exception:
-            pass
-        # Log a concise response summary
-        try:
-            resp_summary = {
-                "classification": result.get("classification"),
-                "scenario": result.get("scenario"),
-                "confidence": result.get("confidence"),
-                "matched_fields": result.get("matched_fields"),
-                "sources_count": len(result.get("sources") or []),
-            }
-            logging.info("OpenAI response summary: %s", json.dumps(resp_summary, ensure_ascii=False))
-        except Exception:
-            logging.info("OpenAI response received (summary unavailable)")
+        result = _parse_gpt_response(text)
+        
+        # Apply confidence hygiene rules
+        _apply_confidence_hygiene(result, preliminary_analysis)
+        
+        # Log response summary
+        _log_response_summary(result)
+        
         return result
 
+    except json.JSONDecodeError as e:
+        # Specific handling for JSON parsing errors
+        logging.error(f"Failed to parse GPT response as JSON: {e}", exc_info=True)
+        return fallback_classification(preliminary_analysis)
+        
     except Exception as e:
-        logging.error(f"Error in GPT classification: {e}")
+        logging.error(f"Error in GPT classification: {e}", exc_info=True)
         return fallback_classification(preliminary_analysis)
 
 def fallback_classification(preliminary_analysis):
