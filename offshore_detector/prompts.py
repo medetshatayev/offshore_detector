@@ -20,7 +20,9 @@ def load_offshore_jurisdictions() -> List[Dict[str, str]]:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
     possible_paths = [
-        # Docker container path
+        # Docker container path (volume mounted)
+        '/docs/offshore_countries.md',
+        # Alternative Docker path
         '/app/docs/offshore_countries.md',
         # Local development path (when running from offshore_detector/)
         os.path.join(os.path.dirname(current_dir), 'docs', 'offshore_countries.md'),

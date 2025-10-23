@@ -7,6 +7,7 @@ services:
       - offshore_detector/.env
     volumes:
       - ./offshore_detector:/app
+      - ./docs:/docs
       - ./docs:/app/docs
       - uploads:/app/uploads
       - outputs:/app/outputs

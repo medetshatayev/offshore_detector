@@ -20,46 +20,7 @@ OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o')  # Default to gpt-4o
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
-def _extract_output_text(resp) -> Optional[str]:
-    """
-    Extract text output from OpenAI response.
-    Handles different response formats.
-    
-    Args:
-        resp: OpenAI response object
-    
-    Returns:
-        Extracted text or None
-    """
-    try:
-        # Try direct output_text attribute
-        if hasattr(resp, "output_text") and resp.output_text:
-            return resp.output_text
-        
-        # Try nested output structure
-        if hasattr(resp, "output"):
-            parts = []
-            for item in resp.output:
-                if hasattr(item, "content"):
-                    for c in item.content:
-                        if hasattr(c, "type") and c.type == "output_text":
-                            if hasattr(c, "text") and c.text:
-                                parts.append(c.text)
-            
-            if parts:
-                return "\n".join(parts)
-        
-        # Fallback: try to get text from choices (standard completion format)
-        if hasattr(resp, "choices") and resp.choices:
-            choice = resp.choices[0]
-            if hasattr(choice, "message") and hasattr(choice.message, "content"):
-                return choice.message.content
-        
-        return None
-        
-    except Exception as e:
-        logging.error(f"Failed to extract output text: {e}", exc_info=True)
-        return None
+# Removed _extract_output_text - not needed with Responses API streaming
 
 
 def _parse_json_response(text: str) -> dict:
@@ -103,7 +64,7 @@ def _parse_json_response(text: str) -> dict:
 )
 def _call_openai_api(system_prompt_a: str, system_prompt_b: str, user_prompt: str) -> str:
     """
-    Call OpenAI API with retry logic.
+    Call OpenAI Responses API with retry logic and web_search tool.
     
     Args:
         system_prompt_a: System prompt with offshore list
@@ -120,21 +81,32 @@ def _call_openai_api(system_prompt_a: str, system_prompt_b: str, user_prompt: st
         raise ValueError("OpenAI client not initialized. Check OPENAI_API_KEY.")
     
     try:
-        # Build request - using Responses API format
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt_a},
-                {"role": "system", "content": system_prompt_b},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.1,
-            max_tokens=2000,
-            response_format={"type": "json_object"}  # Force JSON output
-        )
+        # Combine system prompts
+        combined_instructions = f"{system_prompt_a}\n\n{system_prompt_b}"
         
-        # Extract text
-        text = _extract_output_text(response)
+        # Build request - using Responses API
+        request_args = {
+            'model': OPENAI_MODEL,
+            'instructions': combined_instructions.strip(),
+            'input': [{"role": "user", "content": user_prompt}],
+            'tools': [{"type": "web_search"}],
+            'tool_choice': "auto",
+            'metadata': {"user_location": "Country: KZ, Timezone: Asia/Almaty"}
+        }
+        
+        # Stream response and collect output
+        output_parts = []
+        with client.responses.stream(**request_args) as stream:
+            for event in stream:
+                if event.type == 'response.output_text.delta' and hasattr(event, 'delta'):
+                    output_parts.append(event.delta)
+            
+            # Get final response
+            final_response = stream.get_final_response()
+        
+        # Combine output parts
+        text = ''.join(output_parts)
+        
         if not text:
             raise ValueError("Empty response from OpenAI API")
         
