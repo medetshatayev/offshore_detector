@@ -73,7 +73,24 @@ def _normalize_bank_query(name: str) -> str:
         'almaty': 'Almaty', 'алматы': 'Almaty',
         'astana': 'Astana', 'астана': 'Astana',
         'coral gables': 'Coral Gables',
-        'turkey': 'Turkey', 'ukraine': 'Ukraine', 'korea': 'Korea'
+        'turkey': 'Turkey', 'ukraine': 'Ukraine', 'korea': 'Korea',
+        'philippines': 'Manila', 'manila': 'Manila'
+    }
+    
+    # Well-known bank name mappings (bank_key: (standard_name, home_city))
+    # Helps geocoding by providing bank's known home location
+    bank_aliases = {
+        'hongkong shanghai': ('HSBC', 'Hong Kong'),
+        'hongkong and shanghai': ('HSBC', 'Hong Kong'),
+        'hsbc': ('HSBC', 'Hong Kong'),
+        'dbs': ('DBS', None),
+        'raiffeisen': ('Raiffeisenbank', None),
+        'райффайзен': ('Raiffeisenbank', None),
+        'vakiflar': ('Vakifbank', None),
+        'metropolitan bank and trust': ('Metrobank', 'Manila'),  # Filipino bank
+        'banco pichincha': ('Banco Pichincha', 'Miami'),  # Miami branch is common
+        'bank of america': ('Bank of America', None),
+        'bank america': ('Bank of America', None)
     }
     
     # Remove detailed address components
@@ -84,6 +101,10 @@ def _normalize_bank_query(name: str) -> str:
     s = re.sub(r'\b\d+\s+(street|st|road|rd|avenue|ave|boulevard|blvd|caddesi|ulitsa|circle|square|drive|dr)\b', '', s, flags=re.IGNORECASE)
     # Remove "BUYUKDERE CADDESI" type patterns (street name + type)
     s = re.sub(r'\b\w+\s+(street|st|road|rd|avenue|ave|boulevard|blvd|caddesi|ulitsa|circle|square|drive|dr)\b', '', s, flags=re.IGNORECASE)
+    
+    # Remove fragments like "STATES" from "UNITED STATES"
+    s = re.sub(r'\bSTATES\b', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'\bUNITED\b', '', s, flags=re.IGNORECASE)
     
     # Clean up
     s = re.sub(r'\s+', ' ', s).strip()
@@ -102,22 +123,36 @@ def _normalize_bank_query(name: str) -> str:
     # Clean up after location removal
     s = re.sub(r'\s+', ' ', s).strip()
     
-    # Extract bank name (first 3-4 significant words)
-    words = s.split()
-    stopwords = {'the', 'all', 'and', 'of', 'a', 'an', 'limited', 'ltd', 'corporation', 'corp', 'n.a.', 'agency', 'department', 'treasury', 'head', 'offices', 'office', 'jsc', 'a.s.', 'plaza', 'center', 'central'}
-    meaningful_words = [w for w in words if w.lower() not in stopwords and len(w) > 1 and not w.isdigit()]
+    # Check for well-known bank aliases first
+    s_lower = s.lower()
+    bank_name = None
+    bank_home_location = None
+    for alias, (standard_name, home_city) in bank_aliases.items():
+        if alias in s_lower:
+            bank_name = standard_name
+            bank_home_location = home_city
+            break
     
-    # Take first 3-4 meaningful words for bank name
-    bank_name_words = meaningful_words[:4]
-    bank_name = ' '.join(bank_name_words)
+    # If no alias matched, extract bank name from words
+    if not bank_name:
+        words = s.split()
+        stopwords = {'the', 'all', 'and', 'of', 'a', 'an', 'limited', 'ltd', 'corporation', 'corp', 'n.a.', 'agency', 'department', 'treasury', 'head', 'offices', 'office', 'jsc', 'a.s.', 'plaza', 'center', 'central', 't.a.o.', 't.a.o', 'tao'}
+        meaningful_words = [w for w in words if w.lower() not in stopwords and len(w) > 1 and not w.isdigit()]
+        
+        # Take first 2-3 meaningful words for bank name (shorter is better)
+        bank_name_words = meaningful_words[:3]
+        bank_name = ' '.join(bank_name_words)
     
     # Construct simple query: "BankName Location"
-    if location and bank_name:
-        query = f"{bank_name} {location}"
+    # Prefer bank's home location if known
+    final_location = bank_home_location if bank_home_location else location
+    
+    if final_location and bank_name:
+        query = f"{bank_name} {final_location}"
     elif bank_name:
         query = bank_name
-    elif location:
-        query = location
+    elif final_location:
+        query = final_location
     else:
         # Fallback: use original cleaned string
         query = s[:50]
