@@ -23,21 +23,36 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 jobs = {}
 
 def process_transactions_wrapper(job_id, incoming_path, outgoing_path):
-    """Wrapper to run processing in a thread and update job status."""
+    """
+    Wrapper to run processing in a thread and update job status.
+    Ensures proper cleanup of uploaded files.
+    """
     try:
         processed_files = process_transactions(incoming_path, outgoing_path)
         jobs[job_id] = {'status': 'completed', 'files': processed_files}
+        logging.info(f"Job {job_id} completed successfully")
     except Exception as e:
-        jobs[job_id] = {'status': 'failed', 'error': str(e)}
+        error_msg = str(e)
+        jobs[job_id] = {'status': 'failed', 'error': error_msg}
+        logging.error(f"Job {job_id} failed: {error_msg}", exc_info=True)
     finally:
         # Clean up uploaded files after processing
+        _cleanup_uploaded_files(incoming_path, outgoing_path)
+
+
+def _cleanup_uploaded_files(*file_paths):
+    """
+    Clean up uploaded files with proper error handling.
+    """
+    for path in file_paths:
+        if not path:
+            continue
         try:
-            if os.path.exists(incoming_path):
-                os.remove(incoming_path)
-            if os.path.exists(outgoing_path):
-                os.remove(outgoing_path)
-        except Exception as cleanup_error:
-            logging.warning(f"Failed to clean up uploaded files: {cleanup_error}")
+            if os.path.exists(path):
+                os.remove(path)
+                logging.debug(f"Cleaned up file: {path}")
+        except Exception as e:
+            logging.warning(f"Failed to clean up file {path}: {e}")
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -58,15 +73,14 @@ def index():
 
         if incoming_file and outgoing_file:
             # Validate file extensions
-            allowed_extensions = {'.xlsx', '.xls'}
             incoming_filename = os.path.basename(incoming_file.filename)
             outgoing_filename = os.path.basename(outgoing_file.filename)
             
-            if not any(incoming_filename.lower().endswith(ext) for ext in allowed_extensions):
+            if not _is_valid_excel_file(incoming_filename):
                 flash('Invalid file type for incoming file. Only Excel files (.xlsx, .xls) are allowed.')
                 return redirect(request.url)
             
-            if not any(outgoing_filename.lower().endswith(ext) for ext in allowed_extensions):
+            if not _is_valid_excel_file(outgoing_filename):
                 flash('Invalid file type for outgoing file. Only Excel files (.xlsx, .xls) are allowed.')
                 return redirect(request.url)
             
@@ -110,6 +124,16 @@ def download_file(filename):
         return redirect(url_for('index'))
     
     return send_from_directory(desktop_path, safe_filename, as_attachment=True)
+
+def _is_valid_excel_file(filename):
+    """
+    Validate that a filename has a valid Excel extension.
+    """
+    if not filename:
+        return False
+    allowed_extensions = {'.xlsx', '.xls'}
+    return any(filename.lower().endswith(ext) for ext in allowed_extensions)
+
 
 if __name__ == '__main__':
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
