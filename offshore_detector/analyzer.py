@@ -59,6 +59,7 @@ def _log_transaction_summary(row, direction, preliminary_analysis, final_classif
     """
     Log a structured summary of the transaction analysis.
     Separated for better readability and testability.
+    Note: Does not log PII (counterparty/bank names), only metadata and classification results.
     """
     try:
         row_idx = getattr(row, 'name', 'unknown')
@@ -66,7 +67,7 @@ def _log_transaction_summary(row, direction, preliminary_analysis, final_classif
         payload = {
             "row": row_idx,
             "direction": direction,
-            "swift_country": swift_country,
+            "swift_country": swift_country,  # Country name only, not PII
             "swift_offshore": bool(swift_country),
             "prelim_conf": round(preliminary_analysis.get('confidence', 0.0), 3),
             "final_class": final_classification.get('classification'),

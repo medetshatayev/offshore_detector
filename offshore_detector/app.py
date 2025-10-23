@@ -42,15 +42,30 @@ def process_transactions_wrapper(job_id, incoming_path, outgoing_path):
 
 def _cleanup_uploaded_files(*file_paths):
     """
-    Clean up uploaded files with proper error handling.
+    Clean up uploaded files with proper error handling and safety checks.
+    Only removes files within the upload directory to prevent accidental deletion.
     """
+    upload_folder = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    
     for path in file_paths:
         if not path:
             continue
+        
         try:
-            if os.path.exists(path):
-                os.remove(path)
-                logging.debug(f"Cleaned up file: {path}")
+            # Resolve absolute path and verify it's within upload folder
+            abs_path = os.path.abspath(path)
+            
+            # Security check: ensure file is within upload directory
+            if not abs_path.startswith(upload_folder):
+                logging.warning(f"Refusing to delete file outside upload folder: {path}")
+                continue
+            
+            if os.path.exists(abs_path):
+                os.remove(abs_path)
+                logging.debug(f"Cleaned up file: {abs_path}")
+            else:
+                logging.debug(f"File already removed: {abs_path}")
+                
         except Exception as e:
             logging.warning(f"Failed to clean up file {path}: {e}")
 
@@ -72,9 +87,16 @@ def index():
             return redirect(request.url)
 
         if incoming_file and outgoing_file:
+            # Use secure_filename from werkzeug to prevent path traversal attacks
+            from werkzeug.utils import secure_filename
+            
             # Validate file extensions
-            incoming_filename = os.path.basename(incoming_file.filename)
-            outgoing_filename = os.path.basename(outgoing_file.filename)
+            incoming_filename = secure_filename(incoming_file.filename)
+            outgoing_filename = secure_filename(outgoing_file.filename)
+            
+            if not incoming_filename or not outgoing_filename:
+                flash('Invalid filename')
+                return redirect(request.url)
             
             if not _is_valid_excel_file(incoming_filename):
                 flash('Invalid file type for incoming file. Only Excel files (.xlsx, .xls) are allowed.')

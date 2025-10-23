@@ -11,6 +11,7 @@ import time
 import threading
 import json
 import re
+from typing import Optional
 
 # Simple cache for search results (since they return lists which are not hashable)
 _search_cache = {}
@@ -33,13 +34,21 @@ def _normalize_bank_query(name: str) -> str:
     """
     Normalize bank name for geocoding query.
     Extracts the core bank name, removing addresses and noise.
+    
+    Args:
+        name: Raw bank name string
+    
+    Returns:
+        Normalized bank name suitable for geocoding (max 100 chars)
     """
-    if not isinstance(name, str):
+    if not isinstance(name, str) or not name.strip():
         return ""
     
     # Normalize line separators
     raw = name.replace("/", " ").replace("\\", " ")
     lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    
+    # Edge case: empty after processing
     if not lines:
         return ""
 
@@ -54,7 +63,14 @@ def _normalize_bank_query(name: str) -> str:
         def alpha_ratio(s: str) -> float:
             letters = sum(ch.isalpha() for ch in s)
             return letters / max(1, len(s))
-        candidate = max(lines, key=alpha_ratio)
+        
+        # Ensure we have at least one line with some alphabetic content
+        lines_with_letters = [ln for ln in lines if any(ch.isalpha() for ch in ln)]
+        if lines_with_letters:
+            candidate = max(lines_with_letters, key=alpha_ratio)
+        else:
+            # Last resort: use first line
+            candidate = lines[0]
 
     # Clean up the candidate string
     s = candidate.split(',')[0].strip()  # Cut at first comma
@@ -74,24 +90,38 @@ def _normalize_bank_query(name: str) -> str:
     s = re.sub(r"^[^\w]*", "", s)
     
     # Ensure not empty and limit length
-    return s[:100] if s else lines[0][:80]
+    if s:
+        return s[:100]
+    else:
+        # Fallback to first line if all cleaning removed everything
+        return lines[0][:80]
+
+
+def _normalize_cache_key(bank_name, swift_country_code: Optional[str]) -> tuple:
+    """
+    Normalize arguments for consistent cache keys.
+    Returns a tuple of (normalized_bank_name, normalized_country_code).
+    """
+    # Normalize bank name to lowercase and strip whitespace
+    norm_bank = (bank_name or "").strip().lower()
+    # Normalize country code to uppercase and strip (None becomes empty string for caching)
+    norm_country = (swift_country_code or "").strip().upper() if swift_country_code else ""
+    return (norm_bank, norm_country)
 
 
 @lru_cache(maxsize=500)  # Cache up to 500 unique bank lookups
-@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
-def geocode_bank(bank_name, swift_country_code: str | None = None):
+def _geocode_bank_cached(norm_bank: str, norm_country: str):
     """
-    Geocode bank name using OpenStreetMap Nominatim.
-    Performance: Cached to avoid redundant API calls. Rate-limited to respect API usage policies.
+    Internal cached geocoding function with normalized arguments.
     """
-    if not bank_name:
+    if not norm_bank:
         return None
     
     rate_limit('geocode', min_interval=1.0)  # Nominatim requires 1 req/sec max
 
-    q = _normalize_bank_query(bank_name)
+    q = _normalize_bank_query(norm_bank)
     if not q:
-        q = (bank_name or "")[:80]
+        q = norm_bank[:80]
     
     url = "https://nominatim.openstreetmap.org/search"
     params = {
@@ -100,8 +130,8 @@ def geocode_bank(bank_name, swift_country_code: str | None = None):
         'limit': 2
     }
     # If we have a SWIFT-derived ISO2 country code, constrain the search
-    if isinstance(swift_country_code, str) and len(swift_country_code) == 2 and swift_country_code.isalpha():
-        params['countrycodes'] = swift_country_code.lower()
+    if norm_country and len(norm_country) == 2 and norm_country.isalpha():
+        params['countrycodes'] = norm_country.lower()
     headers = {
         'User-Agent': 'OffshoreDetector/1.0 (mshatayev@gmail.com)',
         'Accept': 'application/json'
@@ -114,30 +144,54 @@ def geocode_bank(bank_name, swift_country_code: str | None = None):
         response.raise_for_status()
         result = response.json()
         
-        # Log compact summary
-        _log_geocoding_result(result, bank_name, q, params.get('countrycodes'))
+        # Log compact summary (use original bank name for logging)
+        _log_geocoding_result(result, norm_bank, q, params.get('countrycodes'))
         
         return result
         
     except requests.RequestException as e:
-        logging.error(f"Geocoding request failed for '{bank_name}': {e}")
+        logging.error(f"Geocoding request failed for '{norm_bank[:50]}': {e}")
         return None
+
+
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
+def geocode_bank(bank_name, swift_country_code: Optional[str] = None):
+    """
+    Geocode bank name using OpenStreetMap Nominatim.
+    Performance: Cached to avoid redundant API calls. Rate-limited to respect API usage policies.
+    
+    Args:
+        bank_name: Name of the bank to geocode
+        swift_country_code: Optional ISO country code from SWIFT (will be normalized)
+    
+    Returns:
+        List of geocoding results or None
+    """
+    # Normalize arguments for consistent caching
+    norm_bank, norm_country = _normalize_cache_key(bank_name, swift_country_code)
+    
+    if not norm_bank:
+        return None
+    
+    # Call cached internal function with normalized arguments
+    return _geocode_bank_cached(norm_bank, norm_country)
 
 
 def _log_geocoding_result(result, bank_name, query, countrycodes):
     """
     Log a compact summary of the geocoding result.
     Separated for better testability and readability.
+    Note: Logs may contain PII (bank names). Consider masking in production.
     """
     try:
         if result and len(result) > 0:
             first = result[0]
             summary = {
-                "bank": bank_name[:50],  # Truncate long bank names
+                "bank": bank_name[:50],  # Truncate long bank names (may contain PII)
                 "display_name": first.get("display_name", "")[:100],
                 "lat": first.get("lat"),
                 "lon": first.get("lon"),
-                "query": query,
+                "query": query[:50],  # Truncate query
                 "countrycodes": countrycodes
             }
             logging.info("Geocoding summary: %s", json.dumps(summary, ensure_ascii=False))
@@ -146,7 +200,7 @@ def _log_geocoding_result(result, bank_name, query, countrycodes):
     except Exception as e:
         logging.debug(f"Failed to log geocoding result: {e}")
 
-def _swift_to_country_code(swift_code: str | None) -> str | None:
+def _swift_to_country_code(swift_code: Optional[str]) -> Optional[str]:
     """
     Extract ISO country code from SWIFT/BIC code.
     SWIFT codes are 8 or 11 characters, with country code at positions 4-6.
@@ -163,7 +217,7 @@ def _swift_to_country_code(swift_code: str | None) -> str | None:
     return country_code if country_code.isalpha() else None
 
 
-async def run_web_research(counterparty_name, bank_name, swift_code: str | None = None):
+async def run_web_research(counterparty_name, bank_name, swift_code: Optional[str] = None):
     """
     Run async geocoding research for the transaction.
     Returns geocoding results in a standardized format.
@@ -184,22 +238,26 @@ async def run_web_research(counterparty_name, bank_name, swift_code: str | None 
 
 
 def _log_research_completion(counterparty_name, bank_name, geocode_result):
-    """Log web research completion with key details."""
+    """
+    Log web research completion with key details.
+    Note: Logs may contain PII. Consider masking counterparty/bank names in production.
+    """
     try:
+        # Mask or truncate PII
+        cp_display = counterparty_name[:50] if counterparty_name else "N/A"
+        bank_display = bank_name[:50] if bank_name else "N/A"
+        
         if geocode_result and len(geocode_result) > 0:
             display_name = geocode_result[0].get("display_name", "Unknown")[:100]
             logging.info("Web research completed: counterparty='%s', bank='%s' -> %s",
-                        counterparty_name[:50] if counterparty_name else "N/A",
-                        bank_name[:50] if bank_name else "N/A",
-                        display_name)
+                        cp_display, bank_display, display_name)
         else:
             logging.info("Web research completed with no results: counterparty='%s', bank='%s'",
-                        counterparty_name[:50] if counterparty_name else "N/A",
-                        bank_name[:50] if bank_name else "N/A")
+                        cp_display, bank_display)
     except Exception as e:
         logging.debug(f"Failed to log research completion: {e}")
 
-def parallel_web_research(counterparty_name, bank_name, swift_code: str | None = None):
+def parallel_web_research(counterparty_name, bank_name, swift_code: Optional[str] = None):
     """
     Entry point for web research with proper event loop handling.
     Handles both cases: with and without an existing event loop.

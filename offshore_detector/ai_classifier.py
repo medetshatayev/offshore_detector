@@ -71,13 +71,41 @@ def _parse_gpt_response(text):
     """
     Parse GPT response text into JSON result.
     Handles markdown code blocks and other formatting.
+    
+    Args:
+        text: Raw text from GPT response
+    
+    Returns:
+        Parsed JSON dict or None if parsing fails
+    
+    Raises:
+        json.JSONDecodeError: If text cannot be parsed as JSON
     """
+    if not text:
+        raise json.JSONDecodeError("Empty response text", "", 0)
+    
     json_str = text.strip()
+    
     # Remove markdown code blocks if present
     if '```json' in json_str or '```' in json_str:
         json_str = json_str.replace('```json', '').replace('```', '').strip()
     
-    return json.loads(json_str)
+    try:
+        result = json.loads(json_str)
+        
+        # Validate required fields are present
+        required_fields = ['classification', 'confidence']
+        missing_fields = [f for f in required_fields if f not in result]
+        if missing_fields:
+            logging.warning(f"GPT response missing required fields: {missing_fields}")
+        
+        return result
+        
+    except json.JSONDecodeError as e:
+        # Log the problematic text (safely truncated) for debugging
+        safe_text = json_str[:500] if len(json_str) > 500 else json_str
+        logging.error(f"Failed to parse GPT response as JSON: {e}. Text preview: {safe_text}")
+        raise
 
 
 def _apply_confidence_hygiene(result, preliminary_analysis):
@@ -232,6 +260,11 @@ def classify_with_gpt4(transaction_data, preliminary_analysis):
         
         return result
 
+    except json.JSONDecodeError as e:
+        # Specific handling for JSON parsing errors
+        logging.error(f"Failed to parse GPT response as JSON: {e}", exc_info=True)
+        return fallback_classification(preliminary_analysis)
+        
     except Exception as e:
         logging.error(f"Error in GPT classification: {e}", exc_info=True)
         return fallback_classification(preliminary_analysis)

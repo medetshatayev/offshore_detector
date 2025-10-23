@@ -56,16 +56,30 @@ def export_to_excel(df, filename, sheet_name):
     
     Raises:
         OSError: If unable to create directory or write file
+        ValueError: If DESKTOP_PATH is not configured
+    
+    Note:
+        Returns early (no file created) if df is None or empty.
+        Calling code should handle this gracefully.
     """
     if df is None or df.empty:
-        logging.warning(f"Attempted to export empty dataframe to {filename}")
+        logging.warning(f"Attempted to export empty dataframe to {filename}. No file created.")
         return
     
-    # Ensure output directory exists
+    # Validate DESKTOP_PATH is configured
+    if not DESKTOP_PATH:
+        raise ValueError("DESKTOP_PATH is not configured. Cannot export files.")
+    
+    # Ensure output directory exists and is writable
     try:
         os.makedirs(DESKTOP_PATH, exist_ok=True)
+        
+        # Test if directory is writable
+        if not os.access(DESKTOP_PATH, os.W_OK):
+            raise OSError(f"DESKTOP_PATH '{DESKTOP_PATH}' is not writable")
+            
     except OSError as e:
-        logging.error(f"Failed to create output directory {DESKTOP_PATH}: {e}")
+        logging.error(f"Failed to create/access output directory {DESKTOP_PATH}: {e}")
         raise
     
     output_path = os.path.join(DESKTOP_PATH, filename)
