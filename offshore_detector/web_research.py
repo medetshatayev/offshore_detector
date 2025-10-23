@@ -250,6 +250,19 @@ def geocode_bank(bank_name, swift_country_code: Optional[str] = None):
     if not norm_bank:
         return None
     
+    # Override country code for banks with known home countries
+    # This fixes cases where SWIFT code branch != bank headquarters
+    bank_home_countries = {
+        'metrobank': 'PH',  # Filipino bank, even if SWIFT has KR (Korea branch)
+        'banco pichincha': 'US',  # Miami branch in USA
+    }
+    
+    norm_bank_lower = norm_bank.lower()
+    for bank_key, home_country in bank_home_countries.items():
+        if bank_key in norm_bank_lower:
+            norm_country = home_country
+            break
+    
     # Call cached internal function with normalized arguments
     return _geocode_bank_cached(norm_bank, norm_country)
 
