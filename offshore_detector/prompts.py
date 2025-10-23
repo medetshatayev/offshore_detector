@@ -16,11 +16,29 @@ def load_offshore_jurisdictions() -> List[Dict[str, str]]:
         List of dicts with 'code3', 'code2', and 'name' keys
     """
     # Determine the path to offshore_countries.md
+    # Try multiple possible locations
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    md_path = os.path.join(os.path.dirname(current_dir), 'docs', 'offshore_countries.md')
     
-    if not os.path.exists(md_path):
-        raise FileNotFoundError(f"Offshore countries file not found at: {md_path}")
+    possible_paths = [
+        # Docker container path
+        '/app/docs/offshore_countries.md',
+        # Local development path (when running from offshore_detector/)
+        os.path.join(os.path.dirname(current_dir), 'docs', 'offshore_countries.md'),
+        # Alternative local path
+        os.path.join(current_dir, '..', 'docs', 'offshore_countries.md'),
+    ]
+    
+    md_path = None
+    for path in possible_paths:
+        normalized_path = os.path.normpath(path)
+        if os.path.exists(normalized_path):
+            md_path = normalized_path
+            break
+    
+    if not md_path:
+        raise FileNotFoundError(
+            f"Offshore countries file not found. Tried paths: {possible_paths}"
+        )
     
     jurisdictions = []
     
