@@ -48,9 +48,10 @@ def parse_excel(file_path, direction):
 def export_to_excel(df, filename, sheet_name):
     """
     Export dataframe to an Excel file on the desktop.
+    Preserves all original columns and appends the "Результат" column.
     
     Args:
-        df: DataFrame to export
+        df: DataFrame to export (must contain "Результат" column)
         filename: Output filename
         sheet_name: Name of the Excel sheet
     
@@ -84,8 +85,8 @@ def export_to_excel(df, filename, sheet_name):
     
     output_path = os.path.join(DESKTOP_PATH, filename)
     
-    # Drop temporary columns before exporting
-    temp_columns = ['amount_kzt_normalized', 'direction', 'timestamp']
+    # Drop temporary/internal columns before exporting
+    temp_columns = ['amount_kzt_normalized', 'direction', 'processed_at', 'row_index']
     df_to_export = df.drop(columns=temp_columns, errors='ignore')
 
     try:

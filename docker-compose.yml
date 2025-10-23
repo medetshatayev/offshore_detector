@@ -1,7 +1,29 @@
+version: '3.8'
+
 services:
-  web:
+  offshore-detector:
     build: .
     ports:
-      - "8081:8081"
+      - "8000:8000"
+    env_file:
+      - offshore_detector/.env
     volumes:
-      - ./offshore_detector/uploads:/app/uploads
+      - ./offshore_detector:/app
+      - ./docs:/app/docs
+      - uploads:/app/uploads
+      - outputs:/app/outputs
+    environment:
+      - DESKTOP_PATH=/app/outputs
+      - UPLOAD_FOLDER=/app/uploads
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  uploads:
+  outputs:
