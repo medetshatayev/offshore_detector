@@ -144,8 +144,18 @@ def analyze_transaction_row(row: pd.Series) -> str:
             **fuzzy_matches
         }
         
-        # 4. Convert row to dict for LLM
-        transaction_data = row.to_dict()
+        # 4. Build minimal transaction data for LLM (only essential fields)
+        transaction_data = {
+            '№п/п': row.get('№п/п'),
+            'direction': direction,
+            'amount_kzt_normalized': row.get('amount_kzt_normalized'),
+            'counterparty': row.get('Плательщик') if direction == 'incoming' else row.get('Получатель'),
+            'bank': row.get('Банк плательщика') if direction == 'incoming' else row.get('Банк получателя'),
+            'swift_code': swift_code,
+            'country_code': country_code,
+            'country_name': country_name,
+            'city': city,
+        }
         
         # 5. Call LLM for classification
         classification = classify_transaction(transaction_data, local_signals)

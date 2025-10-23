@@ -3,7 +3,7 @@ LLM prompt construction for offshore transaction classification.
 Builds System Prompt A (offshore list) and System Prompt B (web_search permission).
 """
 import os
-import re
+import logging
 from typing import Tuple, List, Dict
 
 
@@ -60,15 +60,19 @@ def load_offshore_jurisdictions() -> List[Dict[str, str]]:
             continue
         
         # Parse data rows
-        if in_table and line.startswith('|'):
+        if in_table and line.startswith('|') and line.endswith('|'):
             # Split by | and clean up
             parts = [p.strip() for p in line.split('|')]
-            # parts[0] is empty, parts[1] is LONGNAME, parts[2] is CODE_STR, etc.
-            if len(parts) >= 5:
+            # parts[0] is empty (before first |), parts[1] is LONGNAME, parts[2] is CODE_STR, etc.
+            # Filter out empty parts
+            parts = [p for p in parts if p]
+            
+            if len(parts) >= 4:
                 try:
-                    code3 = parts[2].strip()  # CODE_STR (3-letter)
-                    code2 = parts[3].strip()  # CODE_STR2 (2-letter)
-                    name = parts[4].strip()   # ENGNAME
+                    # parts[0] = LONGNAME, parts[1] = CODE_STR, parts[2] = CODE_STR2, parts[3] = ENGNAME
+                    code3 = parts[1].strip()  # CODE_STR (3-letter)
+                    code2 = parts[2].strip()  # CODE_STR2 (2-letter)
+                    name = parts[3].strip()   # ENGNAME
                     
                     if code2 and name:  # Ensure we have at least code2 and name
                         jurisdictions.append({
@@ -76,9 +80,11 @@ def load_offshore_jurisdictions() -> List[Dict[str, str]]:
                             'code2': code2,
                             'name': name
                         })
-                except (IndexError, ValueError):
+                except (IndexError, ValueError) as e:
+                    logging.debug(f"Failed to parse line: {line}. Error: {e}")
                     continue
     
+    logging.info(f"Loaded {len(jurisdictions)} offshore jurisdictions from {md_path}")
     return jurisdictions
 
 
@@ -179,10 +185,28 @@ def build_user_prompt(transaction_data: dict, local_signals: dict) -> str:
         Formatted user prompt as JSON string
     """
     import json
+    import pandas as pd
+    from datetime import datetime
+    
+    # Convert non-serializable types to strings
+    def make_serializable(obj):
+        if isinstance(obj, (pd.Timestamp, datetime)):
+            return obj.isoformat() if hasattr(obj, 'isoformat') else str(obj)
+        elif isinstance(obj, dict):
+            return {k: make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [make_serializable(item) for item in obj]
+        elif pd.isna(obj):
+            return None
+        return obj
+    
+    # Clean transaction data
+    clean_transaction = make_serializable(transaction_data)
+    clean_signals = make_serializable(local_signals)
     
     payload = {
-        "transaction": transaction_data,
-        "local_signals": local_signals,
+        "transaction": clean_transaction,
+        "local_signals": clean_signals,
         "instruction": (
             "Analyze this transaction for offshore jurisdiction involvement. "
             "Use web_search if you need to verify any information. "
