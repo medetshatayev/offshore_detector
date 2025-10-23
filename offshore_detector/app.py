@@ -87,22 +87,30 @@ def index():
             return redirect(request.url)
 
         if incoming_file and outgoing_file:
-            # Use secure_filename from werkzeug to prevent path traversal attacks
+            # Generate unique filenames to avoid collisions and handle non-ASCII characters
             from werkzeug.utils import secure_filename
-            
-            # Validate file extensions
-            incoming_filename = secure_filename(incoming_file.filename)
-            outgoing_filename = secure_filename(outgoing_file.filename)
+            import uuid
+
+            # Secure the original filename to safely extract the extension
+            incoming_secure = secure_filename(incoming_file.filename)
+            outgoing_secure = secure_filename(outgoing_file.filename)
+
+            incoming_ext = os.path.splitext(incoming_secure)[1]
+            outgoing_ext = os.path.splitext(outgoing_secure)[1]
+
+            # Create unique filenames using UUIDs
+            incoming_filename = f"{uuid.uuid4()}{incoming_ext}"
+            outgoing_filename = f"{uuid.uuid4()}{outgoing_ext}"
             
             if not incoming_filename or not outgoing_filename:
                 flash('Invalid filename')
                 return redirect(request.url)
             
-            if not _is_valid_excel_file(incoming_filename):
+            if not _is_valid_excel_file(incoming_file.filename): # Check original filename
                 flash('Invalid file type for incoming file. Only Excel files (.xlsx, .xls) are allowed.')
                 return redirect(request.url)
             
-            if not _is_valid_excel_file(outgoing_filename):
+            if not _is_valid_excel_file(outgoing_file.filename): # Check original filename
                 flash('Invalid file type for outgoing file. Only Excel files (.xlsx, .xls) are allowed.')
                 return redirect(request.url)
             
