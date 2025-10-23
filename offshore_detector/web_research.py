@@ -33,14 +33,19 @@ def rate_limit(service, min_interval=1.0):
 def _normalize_bank_query(name: str) -> str:
     """
     Normalize bank name for geocoding query.
-    Extracts the core bank name, removing addresses and noise.
+    Extracts bank name + city for better geocoding results.
     Preserves original case to maintain readability of mixed-script text.
+    
+    Strategy:
+    - Keep bank name + city/location
+    - Remove floor numbers, suite numbers, detailed addresses
+    - Keep street names as they help geocoding
     
     Args:
         name: Raw bank name string (may contain mixed Latin/Cyrillic)
     
     Returns:
-        Normalized bank name suitable for geocoding (max 100 chars)
+        Normalized bank name suitable for geocoding (max 150 chars)
     """
     if not isinstance(name, str) or not name.strip():
         return ""
@@ -80,31 +85,33 @@ def _normalize_bank_query(name: str) -> str:
             # Last resort: use first line
             candidate = lines[0]
 
-    # Clean up the candidate string
-    s = candidate.split(',')[0].strip()  # Cut at first comma
+    s = candidate
     
-    # Remove common address patterns (case-insensitive, supports Cyrillic)
-    address_pattern = r"\b(floor|fl|avenue|ave|road|rd|street|st|bldg|building|no\.?|№|suite|ste|unit|этаж|улица|ул)\b.*$"
-    s = re.sub(address_pattern, "", s, flags=re.IGNORECASE).strip()
+    # Remove only floor/suite/building numbers, NOT street names
+    # Pattern: FLOOR 2, PENTHOUSE 2, BUILDING FLOOR 2, etc.
+    floor_pattern = r"\b(floor|fl|penthouse|bldg|building|suite|ste|unit|этаж)\s+[\dA-Z-]+\b"
+    s = re.sub(floor_pattern, "", s, flags=re.IGNORECASE)
+    
+    # Remove "no." or "№" followed by numbers (apartment/office numbers)
+    s = re.sub(r"\b(no\.?|№)\s*\d+\b", "", s, flags=re.IGNORECASE)
     
     # Remove trailing parentheses if they don't contain bank keywords
     m = re.search(r"\(([^)]*)\)$", s)
     if m and not keyword_re.search(m.group(1)):
         s = re.sub(r"\([^)]*\)$", "", s).strip()
     
-    # Clean up extra whitespace and trailing standalone numbers
-    s = re.sub(r"\s+\d+$", "", s).strip()
+    # Clean up extra whitespace
     s = re.sub(r"\s+", " ", s)
     
     # Remove leading non-word characters but preserve Unicode letters
     s = re.sub(r"^[\W_]+", "", s, flags=re.UNICODE).strip()
     
-    # Ensure not empty and limit length
+    # Ensure not empty and limit length (increased to 150 for better geocoding)
     if s:
-        return s[:100]
+        return s[:150]
     else:
         # Fallback to first line if all cleaning removed everything
-        return lines[0][:80]
+        return lines[0][:100]
 
 
 def _normalize_cache_key(bank_name, swift_country_code: Optional[str]) -> tuple:
