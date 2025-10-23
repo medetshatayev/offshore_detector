@@ -2,85 +2,85 @@
 
 **Full table:**
 
-| LONGNAME                                 | CODE_STR     | CODE_STR2     | ENGNAME                                                    |
-|:-----------------------------------------|:-------------|:--------------|:-----------------------------------------------------------|
-| АНГИЛЬЯ                                  | AIA          | AI            | ANGUILLA                                                   |
-| АНДОРРА                                  | AND          | AD            | ANDORRA                                                    |
-| АНТИГУА И БАРБУДА                        | ATG          | AG            | ANTIGUA AND BARBUDA                                        |
-| АРУБА                                    | ABW          | AW            | ARUBA                                                      |
-| БАГАМЫ                                   | BHS          | BS            | BAHAMAS (THE)                                              |
-| БАРБАДОС                                 | BRB          | BB            | BARBADOS                                                   |
-| БАХРЕЙН                                  | BHR          | BH            | BAHRAIN                                                    |
-| БЕЛИЗ                                    | BLZ          | BZ            | BELIZE                                                     |
-| БЕРМУДЫ                                  | BMU          | BM            | BERMUDA                                                    |
-| БОНЭЙР, СИНТ-ЭСТАТИУС И САБА             | BES          | BQ            | BONAIRE, SINT EUSTATIUS AND SABA                           |
-| БРИТАНСКАЯ ТЕРРИТОРИЯ В ИНДИЙСКОМ ОКЕАНЕ | IOT          | IO            | BRITISH INDIAN OCEAN TERRITORY (THE)                       |
-| БРУНЕЙ-ДАРУССАЛАМ                        | BRN          | BN            | BRUNEI DARUSSALAM                                          |
-| ВАНУАТУ                                  | VUT          | VU            | VANUATU                                                    |
-| ВИРГИНСКИЕ ОСТРОВА (БРИТАНСКИЕ)          | VGB          | VG            | VIRGIN ISLANDS (BRITISH)                                   |
-| ВИРГИНСКИЕ ОСТРОВА (США)                 | VIR          | VI            | VIRGIN ISLANDS (U.S.)                                      |
-| ГАЙАНА                                   | GUY          | GY            | GUYANA                                                     |
-| ГВАТЕМАЛА                                | GTM          | GT            | GUATEMALA                                                  |
-| ГЕРНСИ                                   | GGY          | GG            | GUERNSEY                                                   |
-| ГИБРАЛТАР                                | GIB          | GI            | GIBRALTAR                                                  |
-| ГОНКОНГ                                  | HKG          | HK            | HONG KONG                                                  |
-| ГРЕНАДА                                  | GRD          | GD            | GRENADA                                                    |
-| ГУАМ                                     | GUM          | GU            | GUAM                                                       |
-| ДЖЕРСИ                                   | JEY          | JE            | JERSEY                                                     |
-| ДЖИБУТИ                                  | DJI          | DJ            | DJIBOUTI                                                   |
-| ДОМИНИКА                                 | DMA          | DM            | DOMINICA                                                   |
-| ДОМИНИКАНСКАЯ РЕСПУБЛИКА                 | DOM          | DO            | DOMINICAN REPUBLIC (THE)                                   |
-| ИСПАНИЯ                                  | ESP          | ES            | SPAIN                                                      |
-| КОЛУМБИЯ                                 | COL          | CO            | COLOMBIA                                                   |
-| КОМОРЫ                                   | COM          | KM            | COMOROS (THE)                                              |
-| КОСТА-РИКА                               | CRI          | CR            | COSTA RICA                                                 |
-| ЛИБЕРИЯ                                  | LBR          | LR            | LIBERIA                                                    |
-| ЛИВАН                                    | LBN          | LB            | LEBANON                                                    |
-| МАВРИКИЙ                                 | MUS          | MU            | MAURITIUS                                                  |
-| МАВРИТАНИЯ                               | MRT          | MR            | MAURITANIA                                                 |
-| МАКАО                                    | MAK          | MO            | MACAO                                                      |
-| МАЛАЙЗИЯ                                 | MYS          | MY            | MALAYSIA                                                   |
-| МАЛЬДИВЫ                                 | MDV          | MV            | MALDIVES                                                   |
-| МАЛЬТА                                   | MLT          | MT            | MALTA                                                      |
-| МАРОККО                                  | MAR          | MA            | MOROCCO                                                    |
-| МАРШАЛЛОВЫ ОСТРОВА                       | MHL          | MH            | MARSHALL ISLANDS (THE)                                     |
-| МОНАКО                                   | MCO          | MC            | MONACO                                                     |
-| МОНТСЕРРАТ                               | MSR          | MS            | MONTSERRAT                                                 |
-| МЬЯНМА                                   | MMR          | MM            | MYANMAR                                                    |
-| НАУРУ                                    | NRU          | NR            | NAURU                                                      |
-| НИГЕРИЯ                                  | NGA          | NG            | NIGERIA                                                    |
-| НИДЕРЛАНДЫ                               | NLD          | NL            | NETHERLANDS (THE)                                          |
-| НИУЭ                                     | NIU          | NU            | NIUE                                                       |
-| НОВАЯ ЗЕЛАНДИЯ                           | NZL          | NZ            | NEW ZEALAND                                                |
-| ОСТРОВ МЭН                               | IMN          | IM            | ISLE OF MAN                                                |
-| ОСТРОВА КАЙМАН                           | CYM          | KY            | CAYMAN ISLANDS (THE)                                       |
-| ОСТРОВА КУКА                             | COK          | CK            | COOK ISLANDS (THE)                                         |
-| ОСТРОВА ТЕРКС И КАЙКОС                   | TCA          | TC            | TURKS AND CAICOS ISLANDS (THE)                             |
-| ПАЛАУ                                    | PLW          | PW            | PALAU                                                      |
-| ПАНАМА                                   | PAN          | PA            | PANAMA                                                     |
-| ПОРТУГАЛИЯ                               | PRT          | PT            | PORTUGAL                                                   |
-| ПУЭРТО-РИКО                              | PRI          | PR            | PUERTO RICO                                                |
-| САМОА                                    | WSM          | WS            | SAMOA                                                      |
-| САН-МАРИНО                               | SMR          | SM            | SAN MARINO                                                 |
-| СЕВЕРНЫЕ МАРИАНСКИЕ ОСТРОВА              | MNP          | MP            | NORTHERN MARIANA ISLANDS (THE)                             |
-| СЕЙШЕЛЫ                                  | SYC          | SC            | SEYCHELLES                                                 |
-| СЕН-МАРТЕН (НИДЕРЛАНДСКАЯ ЧАСТЬ)         | SXM          | SX            | SINT MAARTEN (DUTCH PART)                                  |
-| СЕНТ-ВИНСЕНТ И ГРЕНАДИНЫ                 | VCT          | VC            | SAINT VINCENT AND THE GRENADINES                           |
-| СЕНТ-КИТС И НЕВИС                        | KNA          | KN            | SAINT KITTS AND NEVIS                                      |
-| СЕНТ-ЛЮСИЯ                               | LCA          | LC            | SAINT LUCIA                                                |
-| СОЕДИНЕННЫЕ ШТАТЫ                        | USA          | US            | UNITED STATES OF AMERICA (THE)                             |
-| СОЕДИНЕНОЕ КОРОЛЕВСТВО                   | GBR          | GB            | UNITED KINGDOM OF GREAT BRITAIN AND NORTHERN IRELAND (THE) |
-| СУРИНАМ                                  | SUR          | SR            | SURINAME                                                   |
-| ТАНЗАНИЯ, ОБЪЕДИНЕННАЯ РЕСПУБЛИКА        | TZA          | TZ            | TANZANIA, THE UNITED REPUBLIC OF                           |
-| ТОНГА                                    | TON          | TO            | TONGA                                                      |
-| ТРИНИДАД И ТОБАГО                        | TTO          | TT            | TRINIDAD AND TOBAGO                                        |
-| ФИДЖИ                                    | FJI          | FJ            | FIJI                                                       |
-| ФИЛИППИНЫ                                | PHL          | PH            | PHILIPPINES (THE)                                          |
-| ФРАНЦИЯ                                  | FRA          | FR            | FRANCE                                                     |
-| ФРАНЦУЗСКАЯ ГВИАНА                       | GUF          | GF            | FRENCH GUIANA                                              |
-| ФРАНЦУЗСКАЯ ПОЛИНЕЗИЯ                    | PYF          | PF            | FRENCH POLYNESIA                                           |
-| ФРАНЦУЗСКИЕ ЮЖНЫЕ ТЕРРИТОРИИ             | ATF          | TF            | FRENCH SOUTHERN TERRITORIES (THE)                          |
-| ЧЕРНОГОРИЯ                               | MNE          | ME            | MONTENEGRO                                                 |
-| ШРИ-ЛАНКА                                | LKA          | LK            | SRI LANKA                                                  |
-| ЮЖН.ДЖОРДЖИЯ И ЮЖН.САНДВИЧ.ОСТРОВА       | SGS          | GS            | SOUTH GEORGIA AND THE SOUTH SANDWICH ISLANDS               |
-| ЯМАЙКА                                   | JAM          | JM            | JAMAICA                                                    |
+| RUSNAME                                  | CODE      | ENGNAME                                                    |
+|:-----------------------------------------|:----------|:-----------------------------------------------------------|
+| АНГИЛЬЯ                                  | AI        | ANGUILLA                                                   |
+| АНДОРРА                                  | AD        | ANDORRA                                                    |
+| АНТИГУА И БАРБУДА                        | AG        | ANTIGUA AND BARBUDA                                        |
+| АРУБА                                    | AW        | ARUBA                                                      |
+| БАГАМЫ                                   | BS        | BAHAMAS (THE)                                              |
+| БАРБАДОС                                 | BB        | BARBADOS                                                   |
+| БАХРЕЙН                                  | BH        | BAHRAIN                                                    |
+| БЕЛИЗ                                    | BZ        | BELIZE                                                     |
+| БЕРМУДЫ                                  | BM        | BERMUDA                                                    |
+| БОНЭЙР, СИНТ-ЭСТАТИУС И САБА             | BQ        | BONAIRE, SINT EUSTATIUS AND SABA                           |
+| БРИТАНСКАЯ ТЕРРИТОРИЯ В ИНДИЙСКОМ ОКЕАНЕ | IO        | BRITISH INDIAN OCEAN TERRITORY (THE)                       |
+| БРУНЕЙ-ДАРУССАЛАМ                        | BN        | BRUNEI DARUSSALAM                                          |
+| ВАНУАТУ                                  | VU        | VANUATU                                                    |
+| ВИРГИНСКИЕ ОСТРОВА (БРИТАНСКИЕ)          | VG        | VIRGIN ISLANDS (BRITISH)                                   |
+| ВИРГИНСКИЕ ОСТРОВА (США)                 | VI        | VIRGIN ISLANDS (U.S.)                                      |
+| ГАЙАНА                                   | GY        | GUYANA                                                     |
+| ГВАТЕМАЛА                                | GT        | GUATEMALA                                                  |
+| ГЕРНСИ                                   | GG        | GUERNSEY                                                   |
+| ГИБРАЛТАР                                | GI        | GIBRALTAR                                                  |
+| ГОНКОНГ                                  | HK        | HONG KONG                                                  |
+| ГРЕНАДА                                  | GD        | GRENADA                                                    |
+| ГУАМ                                     | GU        | GUAM                                                       |
+| ДЖЕРСИ                                   | JE        | JERSEY                                                     |
+| ДЖИБУТИ                                  | DJ        | DJIBOUTI                                                   |
+| ДОМИНИКА                                 | DM        | DOMINICA                                                   |
+| ДОМИНИКАНСКАЯ РЕСПУБЛИКА                 | DO        | DOMINICAN REPUBLIC (THE)                                   |
+| ИСПАНИЯ                                  | ES        | SPAIN                                                      |
+| КОЛУМБИЯ                                 | CO        | COLOMBIA                                                   |
+| КОМОРЫ                                   | KM        | COMOROS (THE)                                              |
+| КОСТА-РИКА                               | CR        | COSTA RICA                                                 |
+| ЛИБЕРИЯ                                  | LR        | LIBERIA                                                    |
+| ЛИВАН                                    | LB        | LEBANON                                                    |
+| МАВРИКИЙ                                 | MU        | MAURITIUS                                                  |
+| МАВРИТАНИЯ                               | MR        | MAURITANIA                                                 |
+| МАКАО                                    | MO        | MACAO                                                      |
+| МАЛАЙЗИЯ                                 | MY        | MALAYSIA                                                   |
+| МАЛЬДИВЫ                                 | MV        | MALDIVES                                                   |
+| МАЛЬТА                                   | MT        | MALTA                                                      |
+| МАРОККО                                  | MA        | MOROCCO                                                    |
+| МАРШАЛЛОВЫ ОСТРОВА                       | MH        | MARSHALL ISLANDS (THE)                                     |
+| МОНАКО                                   | MC        | MONACO                                                     |
+| МОНТСЕРРАТ                               | MS        | MONTSERRAT                                                 |
+| МЬЯНМА                                   | MM        | MYANMAR                                                    |
+| НАУРУ                                    | NR        | NAURU                                                      |
+| НИГЕРИЯ                                  | NG        | NIGERIA                                                    |
+| НИДЕРЛАНДЫ                               | NL        | NETHERLANDS (THE)                                          |
+| НИУЭ                                     | NU        | NIUE                                                       |
+| НОВАЯ ЗЕЛАНДИЯ                           | NZ        | NEW ZEALAND                                                |
+| ОСТРОВ МЭН                               | IM        | ISLE OF MAN                                                |
+| ОСТРОВА КАЙМАН                           | KY        | CAYMAN ISLANDS (THE)                                       |
+| ОСТРОВА КУКА                             | CK        | COOK ISLANDS (THE)                                         |
+| ОСТРОВА ТЕРКС И КАЙКОС                   | TC        | TURKS AND CAICOS ISLANDS (THE)                             |
+| ПАЛАУ                                    | PW        | PALAU                                                      |
+| ПАНАМА                                   | PA        | PANAMA                                                     |
+| ПОРТУГАЛИЯ                               | PT        | PORTUGAL                                                   |
+| ПУЭРТО-РИКО                              | PR        | PUERTO RICO                                                |
+| САМОА                                    | WS        | SAMOA                                                      |
+| САН-МАРИНО                               | SM        | SAN MARINO                                                 |
+| СЕВЕРНЫЕ МАРИАНСКИЕ ОСТРОВА              | MP        | NORTHERN MARIANA ISLANDS (THE)                             |
+| СЕЙШЕЛЫ                                  | SC        | SEYCHELLES                                                 |
+| СЕН-МАРТЕН (НИДЕРЛАНДСКАЯ ЧАСТЬ)         | SX        | SINT MAARTEN (DUTCH PART)                                  |
+| СЕНТ-ВИНСЕНТ И ГРЕНАДИНЫ                 | VC        | SAINT VINCENT AND THE GRENADINES                           |
+| СЕНТ-КИТС И НЕВИС                        | KN        | SAINT KITTS AND NEVIS                                      |
+| СЕНТ-ЛЮСИЯ                               | LC        | SAINT LUCIA                                                |
+| СОЕДИНЕННЫЕ ШТАТЫ                        | US        | UNITED STATES OF AMERICA (THE)                             |
+| СОЕДИНЕНОЕ КОРОЛЕВСТВО                   | GB        | UNITED KINGDOM OF GREAT BRITAIN AND NORTHERN IRELAND (THE) |
+| СУРИНАМ                                  | SR        | SURINAME                                                   |
+| ТАНЗАНИЯ, ОБЪЕДИНЕННАЯ РЕСПУБЛИКА        | TZ        | TANZANIA, THE UNITED REPUBLIC OF                           |
+| ТОНГА                                    | TO        | TONGA                                                      |
+| ТРИНИДАД И ТОБАГО                        | TT        | TRINIDAD AND TOBAGO                                        |
+| ФИДЖИ                                    | FJ        | FIJI                                                       |
+| ФИЛИППИНЫ                                | PH        | PHILIPPINES (THE)                                          |
+| ФРАНЦИЯ                                  | FR        | FRANCE                                                     |
+| ФРАНЦУЗСКАЯ ГВИАНА                       | GF        | FRENCH GUIANA                                              |
+| ФРАНЦУЗСКАЯ ПОЛИНЕЗИЯ                    | PF        | FRENCH POLYNESIA                                           |
+| ФРАНЦУЗСКИЕ ЮЖНЫЕ ТЕРРИТОРИИ             | TF        | FRENCH SOUTHERN TERRITORIES (THE)                          |
+| ЧЕРНОГОРИЯ                               | ME        | MONTENEGRO                                                 |
+| ШРИ-ЛАНКА                                | LK        | SRI LANKA                                                  |
+| ЮЖН.ДЖОРДЖИЯ И ЮЖН.САНДВИЧ.ОСТРОВА       | GS        | SOUTH GEORGIA AND THE SOUTH SANDWICH ISLANDS               |
+| ЯМАЙКА                                   | JM        | JAMAICA                                                    |
