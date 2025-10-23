@@ -33,85 +33,101 @@ def rate_limit(service, min_interval=1.0):
 def _normalize_bank_query(name: str) -> str:
     """
     Normalize bank name for geocoding query.
-    Extracts bank name + city for better geocoding results.
-    Preserves original case to maintain readability of mixed-script text.
+    SIMPLIFIED STRATEGY: Extract bank name + city only.
     
-    Strategy:
-    - Keep bank name + city/location
-    - Remove floor numbers, suite numbers, detailed addresses
-    - Keep street names as they help geocoding
+    Geocoding APIs work best with simple queries like:
+    - "HSBC Hong Kong" ✓
+    - "Raiffeisenbank Moscow" ✓
+    NOT:
+    - "HONGKONG AND SHANGHAI BANKING CORPORATION LIMITED, THE ALL HK OFFICES..." ✗
     
     Args:
         name: Raw bank name string (may contain mixed Latin/Cyrillic)
     
     Returns:
-        Normalized bank name suitable for geocoding (max 150 chars)
+        Simplified query: "BankName City" (max 100 chars)
     """
     if not isinstance(name, str) or not name.strip():
         return ""
     
     # Remove leading routing/account numbers and slashes
-    # Pattern: //RU044525700.30101810200000000700 АО BANK
-    # or: //РУ044525700.30101810200000000700 АО BANK (Cyrillic)
     s = name
-    # Remove leading slashes and account-like patterns (support both Latin and Cyrillic)
     s = re.sub(r'^[/\\]*\s*[\w]{0,4}\d+[.\d]*\s*', '', s, flags=re.UNICODE)
     
-    # Normalize line separators but preserve the text
+    # Normalize line separators
     s = s.replace("/", " ").replace("\\", " ")
-    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    s = re.sub(r"\s+", " ", s).strip()
     
-    # Edge case: empty after processing
-    if not lines:
+    if not s:
         return ""
-
-    # Keyword regex for bank identification (case-insensitive, supports Cyrillic)
-    keyword_re = re.compile(r"\b(bank|банк|банка)\b", re.IGNORECASE)
     
-    # Prefer a line containing bank keywords
-    candidate = next((ln for ln in lines if keyword_re.search(ln)), None)
+    # Common city/country names to extract  
+    known_locations = {
+        'moscow': 'Moscow', 'москва': 'Moscow', 'moskva': 'Moscow',
+        'istanbul': 'Istanbul', 'стамбул': 'Istanbul',
+        'kiev': 'Kiev', 'киев': 'Kiev', 'kyiv': 'Kyiv',
+        'hong kong': 'Hong Kong', 'гонконг': 'Hong Kong', 'hongkon': 'Hong Kong',
+        'seoul': 'Seoul', 'сеул': 'Seoul',
+        'miami': 'Miami', 'майами': 'Miami',
+        'ankara': 'Ankara', 'анкара': 'Ankara',
+        'almaty': 'Almaty', 'алматы': 'Almaty',
+        'astana': 'Astana', 'астана': 'Astana',
+        'coral gables': 'Coral Gables',
+        'turkey': 'Turkey', 'ukraine': 'Ukraine', 'korea': 'Korea'
+    }
     
-    # Fallback: pick line with highest alphabetic ratio
-    if candidate is None:
-        def alpha_ratio(s: str) -> float:
-            letters = sum(ch.isalpha() for ch in s)
-            return letters / max(1, len(s))
-        
-        # Ensure we have at least one line with some alphabetic content
-        lines_with_letters = [ln for ln in lines if any(ch.isalpha() for ch in ln)]
-        if lines_with_letters:
-            candidate = max(lines_with_letters, key=alpha_ratio)
-        else:
-            # Last resort: use first line
-            candidate = lines[0]
-
-    s = candidate
+    # Remove detailed address components
+    s = re.sub(r'\b(room|office|floor|fl|penthouse|building|suite|ste|unit)\s+[\w\d-]+', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(no\.?|№)\s*\d+', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'\b\d+[/-]\d+\b', '', s)  # Remove "42/4", "61-65"
+    # Remove street addresses but NOT everything after (to preserve city names)
+    s = re.sub(r'\b\d+\s+(street|st|road|rd|avenue|ave|boulevard|blvd|caddesi|ulitsa|circle|square|drive|dr)\b', '', s, flags=re.IGNORECASE)
+    # Remove "BUYUKDERE CADDESI" type patterns (street name + type)
+    s = re.sub(r'\b\w+\s+(street|st|road|rd|avenue|ave|boulevard|blvd|caddesi|ulitsa|circle|square|drive|dr)\b', '', s, flags=re.IGNORECASE)
     
-    # Remove only floor/suite/building numbers, NOT street names
-    # Pattern: FLOOR 2, PENTHOUSE 2, BUILDING FLOOR 2, etc.
-    floor_pattern = r"\b(floor|fl|penthouse|bldg|building|suite|ste|unit|этаж)\s+[\dA-Z-]+\b"
-    s = re.sub(floor_pattern, "", s, flags=re.IGNORECASE)
+    # Clean up
+    s = re.sub(r'\s+', ' ', s).strip()
     
-    # Remove "no." or "№" followed by numbers (apartment/office numbers)
-    s = re.sub(r"\b(no\.?|№)\s*\d+\b", "", s, flags=re.IGNORECASE)
+    # Extract city/location
+    location = None
+    s_lower = s.lower()
+    # Check for multi-word locations first (like "hong kong", "coral gables")
+    for loc_key in sorted(known_locations.keys(), key=len, reverse=True):
+        if loc_key in s_lower:
+            location = known_locations[loc_key]
+            # Remove the location from string to avoid duplication
+            s = re.sub(re.escape(loc_key), '', s, flags=re.IGNORECASE)
+            break
     
-    # Remove trailing parentheses if they don't contain bank keywords
-    m = re.search(r"\(([^)]*)\)$", s)
-    if m and not keyword_re.search(m.group(1)):
-        s = re.sub(r"\([^)]*\)$", "", s).strip()
+    # Clean up after location removal
+    s = re.sub(r'\s+', ' ', s).strip()
     
-    # Clean up extra whitespace
-    s = re.sub(r"\s+", " ", s)
+    # Extract bank name (first 3-4 significant words)
+    words = s.split()
+    stopwords = {'the', 'all', 'and', 'of', 'a', 'an', 'limited', 'ltd', 'corporation', 'corp', 'n.a.', 'agency', 'department', 'treasury', 'head', 'offices', 'office', 'jsc', 'a.s.', 'plaza', 'center', 'central'}
+    meaningful_words = [w for w in words if w.lower() not in stopwords and len(w) > 1 and not w.isdigit()]
     
-    # Remove leading non-word characters but preserve Unicode letters
-    s = re.sub(r"^[\W_]+", "", s, flags=re.UNICODE).strip()
+    # Take first 3-4 meaningful words for bank name
+    bank_name_words = meaningful_words[:4]
+    bank_name = ' '.join(bank_name_words)
     
-    # Ensure not empty and limit length (increased to 150 for better geocoding)
-    if s:
-        return s[:150]
+    # Construct simple query: "BankName Location"
+    if location and bank_name:
+        query = f"{bank_name} {location}"
+    elif bank_name:
+        query = bank_name
+    elif location:
+        query = location
     else:
-        # Fallback to first line if all cleaning removed everything
-        return lines[0][:100]
+        # Fallback: use original cleaned string
+        query = s[:50]
+    
+    # Final cleanup
+    query = re.sub(r'\s+', ' ', query).strip()
+    query = re.sub(r'[,;()]+', '', query)  # Remove extra punctuation
+    query = re.sub(r'\s+', ' ', query).strip()
+    
+    return query[:100]
 
 
 def _normalize_cache_key(bank_name, swift_country_code: Optional[str]) -> tuple:
